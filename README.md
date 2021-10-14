@@ -12,7 +12,11 @@ If you are experiencing permissions issues (Mac OSX), you may also need to place
 
 ## Developer Setup
 
-Follow these steps to get the developer environment up and running:
+First, clone this repository to a local directory
+
+```shell
+git clone -b production https://github.com/ardriveapp/ardrive-sync.git ./ardrive-sync
+```
 
 ### Install Yarn 2
 
