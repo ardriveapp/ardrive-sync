@@ -1,0 +1,105 @@
+{
+	"name": "ardrive-sync",
+	"version": "0.1.0",
+	"description": "ArDrive Sync is a small app that synchronzies content to and from the permaweb, using the old CLI components.",
+	"main": "./lib/exports.js",
+	"types": "./lib/exports.d.ts",
+	"dependencies": {
+		"arbundles": "^0.2.7",
+		"arweave": "^1.10.16",
+		"axios": "^0.21.1",
+		"better-sqlite3": "^7.1.2",
+		"chokidar": "^3.5.1",
+		"concat-stream": "^2.0.0",
+		"folder-hash": "^4.0.0",
+		"futoin-hkdf": "^1.3.3",
+		"jwk-to-pem": "^2.0.4",
+		"md5-file": "^5.0.0",
+		"mime-types": "^2.1.29",
+		"node-fetch": "^2.6.1",
+		"progress": "^2.0.3",
+		"prompt-password": "^1.2.0",
+		"prompt-sync": "^4.2.0",
+		"prompts": "^2.4.0",
+		"smartweave": "^0.4.45",
+		"ts-sinon": "^2.0.2",
+		"typescript": "^4.2.3",
+		"utf8": "^3.0.0",
+		"uuid": "^8.3.2"
+	},
+	"devDependencies": {
+		"@commitlint/cli": "^12.1.4",
+		"@commitlint/config-conventional": "^12.1.4",
+		"@istanbuljs/nyc-config-typescript": "^1.0.1",
+		"@types/better-sqlite3": "^5.4.1",
+		"@types/chai": "^4.2.15",
+		"@types/folder-hash": "^4.0.0",
+		"@types/fs-extra": "^9.0.8",
+		"@types/jwk-to-pem": "^2.0.0",
+		"@types/mime-types": "^2.1.0",
+		"@types/mocha": "^8.2.1",
+		"@types/node": "^14.14.32",
+		"@types/node-fetch": "^2.5.8",
+		"@types/power-assert": "^1",
+		"@types/progress": "^2.0.3",
+		"@types/prompt-sync": "^4.1.0",
+		"@types/prompts": "^2.0.9",
+		"@types/sinon": "^10.0.2",
+		"@types/source-map-support": "^0.5.3",
+		"@types/utf8": "^2.1.6",
+		"@types/uuid": "^8.3.0",
+		"@typescript-eslint/eslint-plugin": "^4.18.0",
+		"@typescript-eslint/parser": "^4.18.0",
+		"chai": "^4.3.3",
+		"eslint": "^7.23.0",
+		"eslint-config-prettier": "^8.1.0",
+		"eslint-plugin-prettier": "latest",
+		"espower-typescript": "^10.0.0",
+		"husky": "^=6",
+		"lint-staged": "^11.0.0",
+		"mocha": "^8.3.1",
+		"nyc": "^15.1.0",
+		"power-assert": "^1.6.1",
+		"prettier": "^2.2.1",
+		"rimraf": "^3.0.2",
+		"source-map-support": "^0.5.19",
+		"ts-node": "^10.1.0",
+		"tsc-files": "^1.1.2"
+	},
+	"scripts": {
+		"clean": "rimraf [lib .nyc_output node_modules]",
+		"format": "prettier --write \"src/**/*.ts\"",
+		"lint": "eslint . --ext .ts",
+		"lintfix": "eslint . --ext .ts --fix",
+		"test": "nyc mocha",
+		"coverage": "nyc --reporter text mocha",
+		"power-assert": "mocha --parallel false --r espower-typescript/guess ./**/*test.ts",
+		"typecheck": "tsc --noemit",
+		"build": "yarn clean && tsc",
+		"version": "yarn run format && git add -A src",
+		"postversion": "git push && git push --tags",
+		"ci": "yarn test && yarn build",
+		"start": "yarn run build && node ./lib/index.js"
+	},
+	"directories": {
+		"test": "./"
+	},
+	"husky": {
+		"hooks": {
+			"pre-commit": "lint-staged"
+		}
+	},
+	"license": "AGPL-3.0-or-later",
+	"author": {
+		"name": "Permanent Data Solutions Inc",
+		"email": "info@ardrive.io",
+		"website": "https://ardrive.io"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/ardriveapp/ardrive-sync.git"
+	},
+	"files": [
+		"lib/**/*"
+	]
+}
