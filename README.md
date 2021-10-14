@@ -8,6 +8,8 @@ To use the ArDrive Sync, install it with your favorite package manager, and run 
 
 If you are experiencing permissions issues (Mac OSX), you may also need to place your wallet file in the same directory you are running ardrive-cli
 
+---- THIS IS CURRENTLY A BETA VERSION ----
+
 ## Developer Setup
 
 Follow these steps to get the developer environment up and running:
