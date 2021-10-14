@@ -1671,14 +1671,24 @@ export async function getPrivateTransactionCipherIV(txid: string): Promise<strin
 
 // Uses GraphQl to pull necessary drive information from another user's Shared Public Drives
 export async function getSharedPublicDrive(driveId: string): Promise<types.ArFSDriveMetaData> {
-	const drive: types.ArFSDriveMetaData = types.ArFSDriveMetaData.Empty(common.appName, common.appVersion, driveId);
+
+	const drive       : types.ArFSDriveMetaData = types.ArFSDriveMetaData.Empty(common.appName, common.appVersion, driveId);
+    const drive_owner                           = await getSharedDriveOwner (driveId, 0);
+
+
+	// Abort right away if the owner-address couldn't be found
+	if (drive_owner == undefined)
+		return drive;
+
+
 	try {
 		// GraphQL Query
 		const query = {
 			query: `query {
-      transactions(
+      transactions(		
         first: 100
         sort: HEIGHT_ASC
+		owners: ["${drive_owner}"]
         tags: [
           { name: "Drive-Id", values: "${driveId}" }
           { name: "Entity-Type", values: "drive" }
@@ -2202,17 +2212,17 @@ export async function getAllMyDataFileTxs(
 }
 
 
+// Gets the Arweave-address that was used to create the first drive metadata transaction of the given Drive-Id
 export async function getSharedDriveOwner (driveId: string, lastBlockHeight: number) : Promise<String | undefined>
 {
-	let hasNextPage = true;
-
+	
 	let edges: gqlTypes.GQLEdgeInterface[] = [];
 	let primaryGraphQLURL = graphQLURL;
 	const backupGraphQLURL = graphQLURL.replace('.net', '.dev');
 	let tries = 0;
 
 
-	while (hasNextPage) {
+
 		const query = {
 			query: `query {
       transactions(
@@ -2222,7 +2232,8 @@ export async function getSharedDriveOwner (driveId: string, lastBlockHeight: num
           { name: "Drive-Id", values: "${driveId}" }
           { name: "Entity-Type", values: ["drive"]}
         ]
-        first: 2        
+		sort: HEIGHT_ASC
+        first: 1
       ) {
         pageInfo {
           hasNextPage
@@ -2247,14 +2258,13 @@ export async function getSharedDriveOwner (driveId: string, lastBlockHeight: num
 		};
 
 		// Call the Arweave gateway
-		try {
-			const response = await arweave.api.post(primaryGraphQLURL, query);
+		try {			
+			const response = await arweave.api.post(primaryGraphQLURL, query);			
 			const { data } = response.data;
 			const { transactions } = data;
 			if (transactions.edges && transactions.edges.length) {
 				edges = edges.concat(transactions.edges);				
-			}
-			hasNextPage = transactions.pageInfo.hasNextPage;
+			}			
 		} catch (err) {
 			console.log(err);
 			if (tries < 5) {
@@ -2275,22 +2285,42 @@ export async function getSharedDriveOwner (driveId: string, lastBlockHeight: num
 				}
 			}
 		}
-	}
-		    
-	const amount = edges.length;
-	let earliest_block=-1
-	let earliest_entry = null;
-    for (let c = 0; c < amount; c++)
-	{		
-		if (earliest_block < 0 || edges[c].node.block.height < earliest_block)
-        {
-			earliest_entry = edges[c];
-			earliest_block = earliest_entry.node.block.height;			
-		}
-	}
 
-	const drive_owner_address = earliest_entry?.node.owner.address;
-	return drive_owner_address;	
+		    
+
+	// We still somehow got more than one entry?
+	// This is a failsafe.
+	const amount = edges.length;
+	if (amount > 1)
+	{
+		console.error ("qgl.ts: getSharedDriveOwner (): Something went wrong, got more than one drive entry.");
+		console.error ("qgl.ts: getSharedDriveOwner (): This might be an injection-attack, proceed with care!");
+		console.log ("Trying to determine which is the valid drive:")
+	
+		let earliest_block=-1
+	    let earliest_entry = null;
+	    console.log ("Amount: " + amount);
+        for (let c = 0; c < amount; c++)
+	    {		
+		    if (earliest_block < 0 || edges[c].node.block.height < earliest_block)
+            {
+			    earliest_entry = edges[c];
+			    earliest_block = earliest_entry.node.block.height;			
+		   }
+	   }
+	   return earliest_entry?.node.owner.address;
+	}
+	
+
+	// Drive was not found
+	else if (amount <= 0)
+		return undefined;
+
+
+	// We got one drive entry as expected
+    else
+		return edges[0].node.owner.address;
+	
 }
 
 
@@ -2320,7 +2350,7 @@ export async function getAllMySharedDataFileTxs(
 	if (drive_owner == null)
 	{
 		console.error ("WARNING: Was unable to figure out drive owner address!");
-		process.exit (-1);
+		return edges;
 	}
 
 
