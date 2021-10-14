@@ -1,4 +1,4 @@
-# ardrive-cli
+# ardrive-sync
 
 The ArDrive Sync Command Line App contains basic public and private drive synchronization via a Node.js application. 
 
@@ -30,7 +30,7 @@ We also use husky. To enable hooks locally, you will need to run:
 yarn husky install
 ```
 
-### Installing and Starting the CLI
+### Installing and Starting ArDrive Sync
 
 Now that everything is set up, to install the package simply run:
 
