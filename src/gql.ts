@@ -2201,6 +2201,100 @@ export async function getAllMyDataFileTxs(
 	return edges;
 }
 
+
+export async function getSharedDriveOwner (driveId: string, lastBlockHeight: number) : Promise<String | undefined>
+{
+	let hasNextPage = true;
+
+	let edges: gqlTypes.GQLEdgeInterface[] = [];
+	let primaryGraphQLURL = graphQLURL;
+	const backupGraphQLURL = graphQLURL.replace('.net', '.dev');
+	let tries = 0;
+
+
+	while (hasNextPage) {
+		const query = {
+			query: `query {
+      transactions(
+        block: {min: ${lastBlockHeight}}
+        tags: [
+          { name: "App-Name", values: ["${common.appName}", "${common.webAppName}"]}
+          { name: "Drive-Id", values: "${driveId}" }
+          { name: "Entity-Type", values: ["drive"]}
+        ]
+        first: 2        
+      ) {
+        pageInfo {
+          hasNextPage
+        }
+        edges {
+          cursor
+          node {
+			owner { address }
+            id
+            block {
+              timestamp
+              height
+            }
+            tags {
+              name
+              value
+            }
+          }
+        }
+      }
+    		}`
+		};
+
+		// Call the Arweave gateway
+		try {
+			const response = await arweave.api.post(primaryGraphQLURL, query);
+			const { data } = response.data;
+			const { transactions } = data;
+			if (transactions.edges && transactions.edges.length) {
+				edges = edges.concat(transactions.edges);				
+			}
+			hasNextPage = transactions.pageInfo.hasNextPage;
+		} catch (err) {
+			console.log(err);
+			if (tries < 5) {
+				tries += 1;
+				console.log(
+					'Error querying GQL for personal data transactions for %s starting at block height %s, trying again.',
+					driveId,
+					lastBlockHeight
+				);
+			} else {
+				tries = 0;
+				if (primaryGraphQLURL.includes('.dev')) {
+					console.log('Backup gateway is having issues, switching to primary.');
+					primaryGraphQLURL = graphQLURL; // Set back to primary and try 5 times
+				} else {
+					console.log('Primary gateway is having issues, switching to backup.');
+					primaryGraphQLURL = backupGraphQLURL; // Change to the backup URL and try 5 times
+				}
+			}
+		}
+	}
+		    
+	const amount = edges.length;
+	let earliest_block=-1
+	let earliest_entry = null;
+    for (let c = 0; c < amount; c++)
+	{		
+		if (earliest_block < 0 || edges[c].node.block.height < earliest_block)
+        {
+			earliest_entry = edges[c];
+			earliest_block = earliest_entry.node.block.height;			
+		}
+	}
+
+	const drive_owner_address = earliest_entry?.node.owner.address;
+	return drive_owner_address;	
+}
+
+
+
 // Gets all of the transactions from a user's wallet, filtered by owner and drive ID.
 export async function getAllMySharedDataFileTxs(
 	driveId: string,
@@ -2218,15 +2312,28 @@ export async function getAllMySharedDataFileTxs(
 		lastBlockHeight -= 5;
 	}
 
+
+	// Get the Ardrive-address that first created the drive.
+	// This is to avoid drive collision attacks.
+	const drive_owner = await getSharedDriveOwner (driveId, lastBlockHeight);
+
+	if (drive_owner == null)
+	{
+		console.error ("WARNING: Was unable to figure out drive owner address!");
+		process.exit (-1);
+	}
+
+
 	while (hasNextPage) {
 		const query = {
 			query: `query {
       transactions(
         block: {min: ${lastBlockHeight}}
+		owners: "${drive_owner}"
         tags: [
           { name: "App-Name", values: ["${common.appName}", "${common.webAppName}"]}
           { name: "Drive-Id", values: "${driveId}" }
-          { name: "Entity-Type", values: ["file", "folder"]}
+          { name: "Entity-Type", values: ["file", "folder"]}		  
         ]
         first: 100
         after: "${cursor}"
