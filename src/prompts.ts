@@ -88,6 +88,18 @@ export const promptForAutoSyncApproval = async (): Promise<number> => {
 	}
 };
 
+export const promptForBundles = async (): Promise<boolean> => {
+	const autoSyncApproval: string = prompt(
+		'  Would you like to use ANS104 Bundles for all uploads to Arweave? (Default is No) Y/N '
+	);
+	if (autoSyncApproval.toUpperCase() === 'Y') {
+		console.log('  ANS104 Bundles will be used.');
+		return true; // enable bundles
+	} else {
+		return false; // disable bundles
+	}
+};
+
 // Prompts the user to change their sync folder path and move all drives, folders and files.
 export const promptToChangeSyncFolderPath = async (currentSyncFolderPath: string): Promise<string> => {
 	const changeSyncFolderPathApproval: string = prompt(
