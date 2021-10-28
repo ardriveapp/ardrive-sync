@@ -36,7 +36,7 @@ We also use husky. To enable hooks locally, you will need to run:
 yarn husky install
 ```
 
-### Installing and Starting ArDrive Sync
+### Building, Installing and Starting ArDrive Sync
 
 Now that everything is set up, to install the package simply run:
 
@@ -48,6 +48,15 @@ And then start the ArDrive Sync command line app:
 
 ```shell
 yarn start
+```
+
+
+### Installing and Starting ArDrive Sync with NPM
+
+ArDrive-Sync is also available via NPM.  It can be installed globally by running the following:
+
+```shell
+npm install ardrive-sync -g
 ```
 
 ### Recommended Visual Studio Code extensions
