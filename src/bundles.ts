@@ -5,7 +5,7 @@ import * as getDb from './db/db_get';
 import * as common from './common';
 import * as fs from 'fs';
 import { ArweaveSigner, bundleAndSignData, createData, DataItem } from 'arbundles';
-import { uploadArFSDriveMetaData, uploadArFSFileData, uploadArFSFileMetaData } from './public/arfs';
+import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
 import { appName, appVersion, arFSVersion } from './constants';
 import { GatewayOracle } from './gateway_oracle';
 import { createDataUploader } from './transactions';
@@ -29,13 +29,31 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 		for (let n = 0; n < Object.keys(filesToUpload).length; ++n) {
 			// Process all file entitites
 			if (filesToUpload[n].entityType === 'file') {
-				// If the total size of the item is greater than 256MB, then we send standard V2 transactions for data and metadata
+				// If the total size of the item is greater than 50MB, then we send a bundle of 1 data tx + metadata tx
 				if (+filesToUpload[n].fileDataSyncStatus === 1 && filesToUpload[n].fileSize >= 50000000) {
-					console.log('Preparing large file - %s', filesToUpload[n].fileName);
-					const uploadedFile = await uploadArFSFileData(user, filesToUpload[n]);
-					filesToUpload[n].dataTxId = uploadedFile.dataTxId;
-					totalARPrice += uploadedFile.arPrice; // Sum up all of the fees paid
-					await uploadArFSFileMetaData(user, filesToUpload[n]);
+					console.log('Preparing large file bundle - %s', filesToUpload[n].fileName);
+					const singleFileBundle: DataItem[] = [];
+					const fileDataItem: DataItem | null = await createArFSFileDataItem(user, filesToUpload[n]);
+					if (fileDataItem !== null) {
+						// Get the price of this upload
+						const winston = await new GatewayOracle().getWinstonPriceForByteCount(
+							filesToUpload[n].fileSize
+						);
+						totalSize += filesToUpload[n].fileSize;
+						totalARPrice += common.winstonToAr(winston); // Sum up all of the fees paid
+						filesToUpload[n].dataTxId = fileDataItem.id;
+						singleFileBundle.push(fileDataItem);
+						bundledFilesUploaded += 1;
+					}
+					const fileMetaDataItem = await createArFSFileMetaDataItem(user, filesToUpload[n]);
+					if (fileMetaDataItem !== null) {
+						singleFileBundle.push(fileMetaDataItem);
+					}
+
+					console.log('Submitting large file bundled TX');
+					const bundledDataTxId = await uploadArFSDataBundle(user, singleFileBundle);
+					filesToUpload[n].dataTxId = bundledDataTxId;
+					await updateDb.updateFileBundleTxId(bundledDataTxId, filesToUpload[n].id);
 					filesUploaded += 1;
 				}
 				// If fileDataSync is 1 and we have not exceeded our 256MB max bundle size, then we submit file data and metadata as a bundle
@@ -309,7 +327,7 @@ export async function createArFSFileMetaDataItem(
 			await dataItem.sign(signer);
 		}
 		if (dataItem != null) {
-			console.log('SUCCESS %s data item was created with TX %s', fileToUpload.filePath, dataItem.id);
+			console.log('SUCCESS %s metadata data item was created with TX %s', fileToUpload.filePath, dataItem.id);
 			// Set the file metadata to syncing
 			fileToUpload.fileMetaDataSyncStatus = 2;
 			fileToUpload.metaDataTxId = dataItem.id;

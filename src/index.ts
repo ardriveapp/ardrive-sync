@@ -2,6 +2,7 @@
 /* eslint-disable no-await-in-loop */
 // index.ts
 import { arDriveCommunityOracle } from './ardrive_community_oracle';
+import { uploadArDriveFiles } from './arweave';
 import { uploadArDriveFilesAndBundles } from './bundles';
 import { sleep } from './common';
 import { setupDatabase } from './db/db_common';
@@ -32,6 +33,7 @@ async function main() {
 		autoSyncApproval: 0
 	};
 	let fileDownloadConflicts: ArFSFileMetaData[] = [];
+	let useBundles = false; // Will use regular v2 transactions or ANS104 bundles
 
 	// Start background task to fetch ArDrive community tip setting
 	arDriveCommunityOracle.setExactTipSettingInBackground();
@@ -47,6 +49,8 @@ async function main() {
 		// Welcome message and info
 		console.log("We have not detected a profile for your login!  Let's get one set up.");
 		user = await cli.promptForNewUserInfo(login);
+		// Allow the user to toggle bundles
+		useBundles = await cli.promptForBundles();
 		const loginPassword = user.dataProtectionKey;
 		await addNewUser(user.dataProtectionKey, user);
 		user = await getUser(loginPassword, login);
@@ -58,6 +62,9 @@ async function main() {
 		if (passwordResult) {
 			user = await getUser(loginPassword, login);
 			console.log('Before we get syncing...');
+
+			// Allow the user to toggle bundles
+			useBundles = await cli.promptForBundles();
 
 			// Allow the user to add other drives
 			await cli.promptToAddOrCreatePersonalPrivateDrive(user);
@@ -128,7 +135,11 @@ async function main() {
 			const uploadBatch: UploadBatch = await getPriceOfNextUploadBatch(user.login);
 			if (uploadBatch.totalArDrivePrice > 0) {
 				if (await cli.promptForArDriveUpload(login, uploadBatch, user.autoSyncApproval)) {
-					await uploadArDriveFilesAndBundles(user);
+					if (useBundles) {
+						await uploadArDriveFilesAndBundles(user);
+					} else {
+						await uploadArDriveFiles(user);
+					}
 				}
 			}
 
