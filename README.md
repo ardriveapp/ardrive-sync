@@ -59,6 +59,11 @@ ArDrive-Sync is also available via NPM.  It can be installed globally by running
 npm install ardrive-sync -g
 ```
 
+And then start the ArDrive Sync command line app:
+
+```shell
+ardrive-sync
+```
 ### Recommended Visual Studio Code extensions
 
 To ensure your environment is compatible, we also recommend the following VSCode extensions:
