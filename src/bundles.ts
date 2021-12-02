@@ -4,7 +4,7 @@ import * as updateDb from './db/db_update';
 import * as getDb from './db/db_get';
 import * as common from './common';
 import * as fs from 'fs';
-import { ArweaveSigner, bundleAndSignData, createData, DataItem } from 'arbundles';
+import { bundleAndSignData, createData, DataItem } from 'arbundles';
 import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
 import { appName, appVersion, arFSVersion } from './constants';
 import { GatewayOracle } from './gateway_oracle';
@@ -12,6 +12,10 @@ import { createDataUploader } from './transactions';
 import { ArFSFileMetaData } from './types/base_Types';
 import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from './crypto';
 import { GQLTagInterface } from './types/gql_Types';
+import { ArweaveSigner } from 'arbundles/src/signing';
+
+// The maximum size of a multi-file bundle is 250MB
+const maxBundleSize = 262144000;
 
 // Uploads all queued files as v2 transactions (files bigger than 50mb) and ANS104 data bundles (capped at 256mb)
 export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Promise<string> {
@@ -29,8 +33,8 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 		for (let n = 0; n < Object.keys(filesToUpload).length; ++n) {
 			// Process all file entitites
 			if (filesToUpload[n].entityType === 'file') {
-				// If the total size of the item is greater than 50MB, then we send a bundle of 1 data tx + metadata tx
-				if (+filesToUpload[n].fileDataSyncStatus === 1 && filesToUpload[n].fileSize >= 50000000) {
+				// If the total size of the item is greater than max bundle size, then we send a bundle of 1 data tx + metadata tx
+				if (+filesToUpload[n].fileDataSyncStatus === 1 && filesToUpload[n].fileSize >= maxBundleSize) {
 					console.log('Preparing large file bundle - %s', filesToUpload[n].fileName);
 					const singleFileBundle: DataItem[] = [];
 					const fileDataItem: DataItem | null = await createArFSFileDataItem(user, filesToUpload[n]);
@@ -56,8 +60,8 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 					await updateDb.updateFileBundleTxId(bundledDataTxId, filesToUpload[n].id);
 					filesUploaded += 1;
 				}
-				// If fileDataSync is 1 and we have not exceeded our 256MB max bundle size, then we submit file data and metadata as a bundle
-				else if (+filesToUpload[n].fileDataSyncStatus === 1 && totalSize < 50000000) {
+				// If fileDataSync is 1 and we have not exceeded our max bundle size, then we submit file data and metadata as a bundle
+				else if (+filesToUpload[n].fileDataSyncStatus === 1 && totalSize < maxBundleSize) {
 					console.log('Preparing data item - %s', filesToUpload[n].fileName);
 					const fileDataItem: DataItem | null = await createArFSFileDataItem(user, filesToUpload[n]);
 					if (fileDataItem !== null) {
