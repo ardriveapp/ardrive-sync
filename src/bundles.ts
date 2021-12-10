@@ -98,7 +98,7 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 				}
 			}
 			// If we have exceeded the total size of the bundle, we stop processing items and submit the bundle
-			if (totalSize > 50000000) {
+			if (totalSize > maxBundleSize) {
 				console.log('Max data bundle size reached %s', totalSize);
 				n = Object.keys(filesToUpload).length;
 				moreItems = 1;
