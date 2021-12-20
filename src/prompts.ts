@@ -88,15 +88,27 @@ export const promptForAutoSyncApproval = async (): Promise<number> => {
 	}
 };
 
+export const promptForDownload = async (): Promise<boolean> => {
+	const autoSyncApproval: string = prompt(
+		'  Would you like to download your permanent files that are not local? (Default is Yes) Y/N '
+	);
+	if (autoSyncApproval.toUpperCase() === 'N') {
+		console.log('  Your files will be not downloaded if they are not already local.');
+		return false; // disable download
+	} else {
+		return true; // disable download
+	}
+};
+
 export const promptForBundles = async (): Promise<boolean> => {
 	const autoSyncApproval: string = prompt(
-		'  Would you like to use ANS104 Bundles for all uploads to Arweave? (Default is No) Y/N '
+		'  Would you like to use ANS104 Bundles for all uploads to Arweave? (Default is Yes) Y/N '
 	);
-	if (autoSyncApproval.toUpperCase() === 'Y') {
-		console.log('  ANS104 Bundles will be used.');
-		return true; // enable bundles
-	} else {
+	if (autoSyncApproval.toUpperCase() === 'N') {
+		console.log('  ANS104 Bundles will not be used.');
 		return false; // disable bundles
+	} else {
+		return true; // enable bundles
 	}
 };
 

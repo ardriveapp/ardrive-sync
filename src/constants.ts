@@ -7,9 +7,10 @@ export const gatewayURL = 'https://arweave.net/';
 
 export const appName = 'ArDrive-Sync';
 export const webAppName = 'ArDrive-Web';
-export const appVersion = '0.1.0';
+export const appVersion = '0.1.1';
 export const arFSVersion = '0.11';
 export const defaultCipher: CipherType = 'AES256-GCM';
+export const maxFileSize = 2000000000;
 
 /**
  * Minimum ArDrive community tip from the Community Improvement Proposal Doc:
