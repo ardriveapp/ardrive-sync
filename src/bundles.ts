@@ -33,7 +33,7 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 		for (let n = 0; n < Object.keys(filesToUpload).length; ++n) {
 			// Process all file entitites
 			if (filesToUpload[n].entityType === 'file') {
-				// If the total size of the item is greater than below size, then we send a bundle of 1 data tx + metadata tx
+				// If the total size of the item is greater than max bundle size, then we send a bundle of 1 data tx + metadata tx
 				if (+filesToUpload[n].fileDataSyncStatus === 1 && filesToUpload[n].fileSize >= maxBundleSize) {
 					console.log('Preparing large file bundle - %s', filesToUpload[n].fileName);
 					const singleFileBundle: DataItem[] = [];
@@ -54,7 +54,7 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 					filesToUpload[n].dataTxId = bundledDataTxId;
 					await updateDb.updateFileBundleTxId(bundledDataTxId, filesToUpload[n].id);
 				}
-				// If fileDataSync is 1 and we have not exceeded our 100MiB max bundle size, then we submit file data and metadata as a bundle
+				// If fileDataSync is 1 and we have not exceeded our max bundle size, then we submit file data and metadata as a bundle
 				else if (+filesToUpload[n].fileDataSyncStatus === 1 && totalSize < maxBundleSize) {
 					console.log('Preparing data item - %s', filesToUpload[n].fileName);
 					const fileDataItem: DataItem | null = await createArFSFileDataItem(user, filesToUpload[n]);
@@ -87,7 +87,8 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 					bundledFilesUploaded += 1;
 				}
 			}
-			// If we have exceeded the total size of the bundle (100MiB), we stop processing items and submit the bundle
+
+			// If we have exceeded the total size of the bundle, we stop processing items and submit the bundle
 			if (totalSize > maxBundleSize) {
 				console.log('Max data bundle size reached %s', totalSize);
 				n = Object.keys(filesToUpload).length;
