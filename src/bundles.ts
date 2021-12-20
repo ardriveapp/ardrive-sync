@@ -1,4 +1,4 @@
-import { arweave, sendArDriveCommunityTip } from './arweave';
+import { arweave } from './arweave';
 import * as types from './types/base_Types';
 import * as updateDb from './db/db_update';
 import * as getDb from './db/db_get';
@@ -12,18 +12,18 @@ import { createDataUploader } from './transactions';
 import { ArFSFileMetaData } from './types/base_Types';
 import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from './crypto';
 import { GQLTagInterface } from './types/gql_Types';
+import { arDriveCommunityOracle } from './ardrive_community_oracle';
+import { selectTokenHolder } from './smartweave';
 import { ArweaveSigner } from 'arbundles/src/signing';
 
-// The maximum size of a multi-file bundle is 250MB
-const maxBundleSize = 262144000;
+const maxBundleSize = 503316480;
+const maxDataItemSize = 1000;
 
 // Uploads all queued files as v2 transactions (files bigger than 50mb) and ANS104 data bundles (capped at 256mb)
 export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Promise<string> {
 	try {
 		const items: DataItem[] = [];
-		let filesUploaded = 0;
 		let bundledFilesUploaded = 0;
-		let totalARPrice = 0;
 		let totalSize = 0;
 		let moreItems = 0;
 		console.log('---Uploading All Queued Files and Folders---');
@@ -39,12 +39,7 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 					const singleFileBundle: DataItem[] = [];
 					const fileDataItem: DataItem | null = await createArFSFileDataItem(user, filesToUpload[n]);
 					if (fileDataItem !== null) {
-						// Get the price of this upload
-						const winston = await new GatewayOracle().getWinstonPriceForByteCount(
-							filesToUpload[n].fileSize
-						);
 						totalSize += filesToUpload[n].fileSize;
-						totalARPrice += common.winstonToAr(winston); // Sum up all of the fees paid
 						filesToUpload[n].dataTxId = fileDataItem.id;
 						singleFileBundle.push(fileDataItem);
 						bundledFilesUploaded += 1;
@@ -58,7 +53,6 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 					const bundledDataTxId = await uploadArFSDataBundle(user, singleFileBundle);
 					filesToUpload[n].dataTxId = bundledDataTxId;
 					await updateDb.updateFileBundleTxId(bundledDataTxId, filesToUpload[n].id);
-					filesUploaded += 1;
 				}
 				// If fileDataSync is 1 and we have not exceeded our max bundle size, then we submit file data and metadata as a bundle
 				else if (+filesToUpload[n].fileDataSyncStatus === 1 && totalSize < maxBundleSize) {
@@ -66,11 +60,7 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 					const fileDataItem: DataItem | null = await createArFSFileDataItem(user, filesToUpload[n]);
 					if (fileDataItem !== null) {
 						// Get the price of this upload
-						const winston = await new GatewayOracle().getWinstonPriceForByteCount(
-							filesToUpload[n].fileSize
-						);
 						totalSize += filesToUpload[n].fileSize;
-						totalARPrice += common.winstonToAr(winston); // Sum up all of the fees paid
 						filesToUpload[n].dataTxId = fileDataItem.id;
 						items.push(fileDataItem);
 						bundledFilesUploaded += 1;
@@ -97,15 +87,18 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 					bundledFilesUploaded += 1;
 				}
 			}
+
 			// If we have exceeded the total size of the bundle, we stop processing items and submit the bundle
 			if (totalSize > maxBundleSize) {
 				console.log('Max data bundle size reached %s', totalSize);
 				n = Object.keys(filesToUpload).length;
 				moreItems = 1;
+			} else if (items.length >= maxDataItemSize) {
+				console.log('Max data item bundle size reached %s', items.length);
+				n = Object.keys(filesToUpload).length;
+				moreItems = 1;
 			}
 		}
-
-		// CREATE THE MANIFEST HERE AND ADD AS DATA ITEM
 
 		// Submit the master bundled transaction
 		if (bundledFilesUploaded > 0) {
@@ -116,19 +109,6 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 			for (let n = 0; n < bundledFilesUploaded; ++n) {
 				await updateDb.updateFileBundleTxId(bundledDataTxId, filesToUpload[n].id);
 			}
-		}
-
-		// If any bundles or large files have been uploaded, we send the ArDrive Profit Sharing Tip and create drive transaction if necessary
-		if (bundledFilesUploaded > 0 || filesUploaded > 0) {
-			// Send the tip to a random ArDrive community member
-			await sendArDriveCommunityTip(user.walletPrivateKey, totalARPrice);
-			const totalUSDPrice = totalARPrice * (await common.getArUSDPrice());
-			console.log(
-				'Uploaded %s file(s) (totaling %s AR, %s USD) to your ArDrive!',
-				filesUploaded + bundledFilesUploaded,
-				totalARPrice,
-				totalUSDPrice
-			);
 		}
 
 		// If not all files have been uploaded in this batch due to hitting max bundle size, we start a new batch of data items
@@ -168,9 +148,22 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: DataItem[]): Promise<string> {
 	try {
 		const bundle = await bundleAndSignData(dataItems, JSON.parse(user.walletPrivateKey));
-		const bundledDataTx = await bundle.toTransaction(arweave, JSON.parse(user.walletPrivateKey));
+		const size = bundle.getRaw().length;
+
+		// Get the random token holder and determine how much they will earn from this bundled upload
+		const holder = await selectTokenHolder();
+		const winstonPrice = await new GatewayOracle().getWinstonPriceForByteCount(size);
+		const tip = Math.round(await arDriveCommunityOracle.getCommunityARTip(winstonPrice));
+
+		const bundledDataTx = await bundle.toTransaction(
+			{ target: holder, quantity: tip.toString() },
+			arweave,
+			JSON.parse(user.walletPrivateKey)
+		);
 		bundledDataTx.addTag('App-Name', appName);
 		bundledDataTx.addTag('App-Version', appVersion);
+		bundledDataTx.addTag('Tip-Type', 'data upload');
+
 		// Sign the bundle
 		await arweave.transactions.sign(bundledDataTx, JSON.parse(user.walletPrivateKey));
 		if (bundledDataTx !== null) {

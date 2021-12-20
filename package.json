@@ -8,8 +8,8 @@
 	},
 	"types": "./lib/exports.d.ts",
 	"dependencies": {
-		"arbundles": "^0.5.5",
-		"arweave": "^1.10.16",
+		"arbundles": "^0.6.3",
+		"arweave": "^1.10.18",
 		"axios": "^0.24.0",
 		"better-sqlite3": "^7.4.4",
 		"chokidar": "^3.5.2",

@@ -34,6 +34,7 @@ async function main() {
 	};
 	let fileDownloadConflicts: ArFSFileMetaData[] = [];
 	let useBundles = false; // Will use regular v2 transactions or ANS104 bundles
+	let downloadFiles = true;
 
 	// Start background task to fetch ArDrive community tip setting
 	arDriveCommunityOracle.setExactTipSettingInBackground();
@@ -51,6 +52,7 @@ async function main() {
 		user = await cli.promptForNewUserInfo(login);
 		// Allow the user to toggle bundles
 		useBundles = await cli.promptForBundles();
+		downloadFiles = await cli.promptForDownload();
 		const loginPassword = user.dataProtectionKey;
 		await addNewUser(user.dataProtectionKey, user);
 		user = await getUser(loginPassword, login);
@@ -65,6 +67,8 @@ async function main() {
 
 			// Allow the user to toggle bundles
 			useBundles = await cli.promptForBundles();
+
+			downloadFiles = await cli.promptForDownload();
 
 			// Allow the user to add other drives
 			await cli.promptToAddOrCreatePersonalPrivateDrive(user);
@@ -105,7 +109,9 @@ async function main() {
 	await getMyArDriveFilesFromPermaWeb(user);
 
 	// Download any files from Arweave that need to be synchronized locally
-	await downloadMyArDriveFiles(user);
+	if (downloadFiles) {
+		await downloadMyArDriveFiles(user);
+	}
 
 	// Get latest wallet balance
 	const balance = await getWalletBalance(user.walletPublicKey);
@@ -125,7 +131,9 @@ async function main() {
 			await getMyArDriveFilesFromPermaWeb(user);
 
 			// Download any files from Arweave that need to be synchronized locally
-			await downloadMyArDriveFiles(user);
+			if (downloadFiles) {
+				await downloadMyArDriveFiles(user);
+			}
 
 			// Check the status of any files that may have been already been uploaded
 			await checkUploadStatus(user.login);
@@ -177,7 +185,7 @@ async function main() {
 }
 
 function displayBanner() {
-	console.log('		Welcome to ArDrive-Sync!');
+	console.log('	Welcome to ArDrive-Sync!');
 	console.log('---------------------------------------');
 }
 

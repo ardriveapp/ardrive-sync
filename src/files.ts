@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 
 import { hashElement, HashElementOptions } from 'folder-hash';
 import { checkFileExistsSync, extToMime } from './common';
-import { appName, appVersion } from './constants';
+import { appName, appVersion, maxFileSize } from './constants';
 import { checksumFile } from './crypto';
 import {
 	getFolderFromSyncTable,
@@ -49,6 +49,10 @@ async function queueFile(filePath: string, login: string, driveId: string, drive
 
 	// Skip if file is encrypted or size is 0
 	if (extension !== '.enc' && stats.size !== 0 && !fileName.startsWith('~$')) {
+		if (stats.size >= maxFileSize) {
+			console.log('File %s is too large (current max size is %s bytes)', filePath, maxFileSize);
+			return;
+		}
 		// Check if the parent folder has been added to the DB first
 		const parentFolderPath = dirname(filePath);
 		const parentFolder: ArFSFileMetaData = await getFolderFromSyncTable(driveId, parentFolderPath);
