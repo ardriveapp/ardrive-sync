@@ -203,7 +203,7 @@ async function queueFolder(
 
 	// Check if the folder is already in the Sync Table, therefore we do not need to add a new one.
 	const isQueuedOrCompleted = await getFolderFromSyncTable(driveId, folderPath);
-	if (isQueuedOrCompleted || fileName === 'New folder') {
+	if (isQueuedOrCompleted || fileName === 'New folder' || fileName === 'untitled folder') {
 		// The folder is already in the queue, or it is the root and we do not want to process.
 		// Or the folder is a "New Folder" and we do not capture this
 	} else {
@@ -309,7 +309,7 @@ export function watchFolder(
 		usePolling: true,
 		interval: 5000,
 		binaryInterval: 5000,
-		ignored: '*.enc',
+		ignored: '*.DS_Store',
 		awaitWriteFinish: {
 			stabilityThreshold: 10000,
 			pollInterval: 10000
