@@ -4,7 +4,7 @@ import * as updateDb from './db/db_update';
 import * as getDb from './db/db_get';
 import * as common from './common';
 import * as fs from 'fs';
-import { bundleAndSignData, createData, DataItem } from 'arbundles/build';
+import { bundleAndSignData, createData, DataItem } from 'arbundles/build/src';
 import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
 import { appName, appVersion, arFSVersion } from './constants';
 import { GatewayOracle } from './gateway_oracle';
