@@ -4,7 +4,7 @@ import * as updateDb from './db/db_update';
 import * as getDb from './db/db_get';
 import * as common from './common';
 import * as fs from 'fs';
-import { bundleAndSignData, createData, DataItem } from 'arbundles/build/src';
+import { bundleAndSignData, createData, DataItem } from 'arbundles';
 import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
 import { appName, appVersion, arFSVersion } from './constants';
 import { GatewayOracle } from './gateway_oracle';
@@ -14,7 +14,7 @@ import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from '
 import { GQLTagInterface } from './types/gql_Types';
 import { arDriveCommunityOracle } from './ardrive_community_oracle';
 import { selectTokenHolder } from './smartweave';
-import { ArweaveSigner } from 'arbundles/build/src/signing';
+import { ArweaveSigner } from 'arbundles/src/signing';
 
 const maxBundleSize = 503316480;
 const maxDataItemSize = 1000;
