@@ -4,17 +4,19 @@ import * as updateDb from './db/db_update';
 import * as getDb from './db/db_get';
 import * as common from './common';
 import * as fs from 'fs';
+import * as streamBuffers from 'stream-buffers';
+import { pipeline } from 'stream/promises';
 import { bundleAndSignData, createData, DataItem } from 'arbundles';
 import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
 import { appName, appVersion, arFSVersion } from './constants';
 import { GatewayOracle } from './gateway_oracle';
-import { createDataUploader } from './transactions';
 import { ArFSFileMetaData } from './types/base_Types';
 import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from './crypto';
 import { GQLTagInterface } from './types/gql_Types';
 import { arDriveCommunityOracle } from './ardrive_community_oracle';
 import { selectTokenHolder } from './smartweave';
 import { ArweaveSigner } from 'arbundles/src/signing';
+import { createTransactionAsync, uploadTransactionAsync } from 'arweave-stream-tx';
 
 const maxBundleSize = 503316480;
 const maxDataItemSize = 1000;
@@ -148,24 +150,48 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: DataItem[]): Promise<string> {
 	try {
 		const bundle = await bundleAndSignData(dataItems, JSON.parse(user.walletPrivateKey));
+		console.log('Your data is bundled!');
 		const size = bundle.getRaw().length;
 
 		// Get the random token holder and determine how much they will earn from this bundled upload
 		const holder = await selectTokenHolder();
+		console.log('We got a holder:', holder);
 		const winstonPrice = await new GatewayOracle().getWinstonPriceForByteCount(size);
 		const tip = Math.round(await arDriveCommunityOracle.getCommunityARTip(winstonPrice));
 
-		const bundledDataTx = await bundle.toTransaction(
-			{ target: holder, quantity: tip.toString() },
-			arweave,
-			JSON.parse(user.walletPrivateKey)
+		// Initialize stream
+		const myReadableStreamBuffer = new streamBuffers.ReadableStreamBuffer({
+			frequency: 10, // in milliseconds.
+			chunkSize: 256 * 1024 // in bytes.
+		});
+
+		// With a buffer
+		myReadableStreamBuffer.put(bundle.getRaw());
+
+		const bundledDataTx = await pipeline(
+			myReadableStreamBuffer,
+			createTransactionAsync(
+				{ target: holder, quantity: tip.toString() },
+				arweave,
+				JSON.parse(user.walletPrivateKey)
+			)
 		);
 		bundledDataTx.addTag('App-Name', appName);
 		bundledDataTx.addTag('App-Version', appVersion);
 		bundledDataTx.addTag('Tip-Type', 'data upload');
+		await arweave.transactions.sign(bundledDataTx, JSON.parse(user.walletPrivateKey));
+
+		// Upload it to Arweave.
+		await pipeline(myReadableStreamBuffer, uploadTransactionAsync(bundledDataTx, arweave));
+
+		/*const bundledDataTx = await bundle.toTransaction(
+			{ target: holder, quantity: tip.toString() },
+			arweave,
+			JSON.parse(user.walletPrivateKey)
+		);*/
 
 		// Sign the bundle
-		await arweave.transactions.sign(bundledDataTx, JSON.parse(user.walletPrivateKey));
+		/*await arweave.transactions.sign(bundledDataTx, JSON.parse(user.walletPrivateKey));
 		if (bundledDataTx !== null) {
 			const uploader = await createDataUploader(bundledDataTx);
 
@@ -184,7 +210,9 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 				return bundledDataTx.id;
 			}
 		}
-		return 'Error';
+		return 'Error';*/
+		console.log('SUCCESS data bundle was submitted with TX %s', bundledDataTx.id);
+		return bundledDataTx.id;
 	} catch (err) {
 		console.log(err);
 		console.log('Error uploading data bundle');
