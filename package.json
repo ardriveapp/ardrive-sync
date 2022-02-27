@@ -11,7 +11,7 @@
 		"@types/stream-buffers": "^3.0.4",
 		"arbundles": "^0.6.8",
 		"arweave": "^1.10.18",
-		"arweave-stream-tx": "^1.1.0",
+		"arweave-stream-tx": "../arweave-stream-tx",
 		"axios": "^0.24.0",
 		"axios-retry": "^3.2.4",
 		"better-sqlite3": "^7.5.0",
