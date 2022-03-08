@@ -103,7 +103,7 @@ export async function uploadArDriveFilesAndBundles(user: types.ArDriveUser): Pro
 
 		// Submit the master bundled transaction
 		if (bundledFilesUploaded > 0) {
-			console.log('Submitting a bundled TX for %s file(s)', items.length);
+			console.log('Submitting a bundled TX for %s items(s)', items.length);
 			const bundledDataTxId = await uploadArFSDataBundle(user, items);
 
 			// Update all files/folders with the bundled TX ID that were submitted as part of this bundle

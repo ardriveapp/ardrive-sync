@@ -1,5 +1,6 @@
 // arfs.js
-import * as arweave from '../arweave';
+import { arweave } from '../arweave';
+import * as arweaveCore from '../arweave';
 import * as fs from 'fs';
 import * as clientTypes from '../types/client_Types';
 import { TransactionUploader } from 'arweave/node/lib/transaction-uploader';
@@ -11,6 +12,7 @@ import { estimateArCost } from '../node';
 import { createDataUploader, createFileDataTransaction, createFileFolderMetaDataTransaction } from './../transactions';
 import { assumedMetadataTxARPrice } from '../constants';
 import { encryptFileOrFolderData } from '../common';
+import { ArFSTransactionUploader } from '../arfs_transaction_uploader';
 
 // Takes a buffer and ArFS File Metadata and creates an ArFS Data Transaction using V2 Transaction with proper GQL tags
 export async function newArFSFileData(
@@ -110,7 +112,7 @@ export async function uploadArFSFileData(
 			fileToUpload.cipher = encryptedData.cipher;
 
 			// Create the Arweave transaction.  It will add the correct ArFS tags depending if it is public or private
-			transaction = await arweave.prepareArFSDataTransaction(user, encryptedData.data, fileToUpload);
+			transaction = await arweaveCore.prepareArFSDataTransaction(user, encryptedData.data, fileToUpload);
 		} else {
 			// The file is public
 			console.log(
@@ -123,14 +125,16 @@ export async function uploadArFSFileData(
 			const fileData = fs.readFileSync(fileToUpload.filePath);
 
 			// Create the Arweave transaction.  It will add the correct ArFS tags depending if it is public or private
-			transaction = await arweave.prepareArFSDataTransaction(user, fileData, fileToUpload);
+			transaction = await arweaveCore.prepareArFSDataTransaction(user, fileData, fileToUpload);
 		}
 
 		// Update the file's data transaction ID
 		fileToUpload.dataTxId = transaction.id;
 
 		// Create the File Uploader object
-		const uploader = await createDataUploader(transaction);
+		// const uploader = await createDataUploader(transaction);
+		transaction.prepareChunks(transaction.data);
+		const uploader = new ArFSTransactionUploader({ transaction, arweave });
 
 		// Set the file metadata to indicate it s being synchronized and update its record in the database
 		fileToUpload.fileDataSyncStatus = 2;
@@ -144,13 +148,10 @@ export async function uploadArFSFileData(
 
 		// Begin to upload chunks and upload the database as needed
 		while (!uploader.isComplete) {
-			const nextChunk = await arweave.uploadDataChunk(uploader);
-			if (nextChunk === null) {
-				break;
-			} else {
-				console.log(`${uploader.pctComplete}% complete, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
-				await updateDb.setFileUploaderObject(JSON.stringify(uploader), fileToUpload.id);
-			}
+			// const nextChunk = await arweaveCore.uploadDataChunk(uploader);
+			await uploader.batchUploadChunks();
+			await updateDb.setFileUploaderObject(JSON.stringify(uploader), fileToUpload.id);
+			console.log(`${uploader.pctComplete}% complete, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
 		}
 
 		// If the uploaded is completed successfully, update the uploadTime of the file so we can track the status
@@ -191,7 +192,11 @@ export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: Ar
 		const secondaryFileMetaDataJSON = JSON.stringify(secondaryFileMetaDataTags);
 		if (fileToUpload.isPublic === 1) {
 			// Public file, do not encrypt
-			transaction = await arweave.prepareArFSMetaDataTransaction(user, fileToUpload, secondaryFileMetaDataJSON);
+			transaction = await arweaveCore.prepareArFSMetaDataTransaction(
+				user,
+				fileToUpload,
+				secondaryFileMetaDataJSON
+			);
 		} else {
 			// Private file, so the metadata must be encrypted
 			// Get the drive and file key needed for encryption
@@ -207,7 +212,7 @@ export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: Ar
 			// Update the file privacy metadata
 			fileToUpload.metaDataCipherIV = encryptedData.cipherIV;
 			fileToUpload.cipher = encryptedData.cipher;
-			transaction = await arweave.prepareArFSMetaDataTransaction(user, fileToUpload, encryptedData.data);
+			transaction = await arweaveCore.prepareArFSMetaDataTransaction(user, fileToUpload, encryptedData.data);
 		}
 
 		// Update the file's data transaction ID
@@ -273,11 +278,11 @@ export async function uploadArFSDriveMetaData(user: ArDriveUser, drive: ArFSDriv
 			);
 			drive.cipher = encryptedDriveMetaData.cipher;
 			drive.cipherIV = encryptedDriveMetaData.cipherIV;
-			transaction = await arweave.prepareArFSDriveTransaction(user, encryptedDriveMetaData.data, drive);
+			transaction = await arweaveCore.prepareArFSDriveTransaction(user, encryptedDriveMetaData.data, drive);
 		} else {
 			// The drive is public
 			console.log('Creating a new Public Drive (name: %s) on the Permaweb', drive.driveName);
-			transaction = await arweave.prepareArFSDriveTransaction(user, driveMetaDataJSON, drive);
+			transaction = await arweaveCore.prepareArFSDriveTransaction(user, driveMetaDataJSON, drive);
 		}
 		// Update the file's data transaction ID
 		drive.metaDataTxId = transaction.id;
