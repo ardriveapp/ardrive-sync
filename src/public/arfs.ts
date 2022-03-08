@@ -149,7 +149,7 @@ export async function uploadArFSFileData(
 
 		// Create the File Uploader object
 		// const uploader = await createDataUploader(transaction); // this is used for sequential chunk uploading
-		transaction.prepareChunks(transaction.data);
+		await transaction.prepareChunks(transaction.data);
 		const uploader = new ArFSTransactionUploader({ transaction, arweave });
 
 		// Set the file metadata to indicate it s being synchronized and update its record in the database

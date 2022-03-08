@@ -169,7 +169,7 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 		await arweave.transactions.sign(bundledDataTx, JSON.parse(user.walletPrivateKey));
 		if (bundledDataTx !== null) {
 			//const uploader = await createDataUploader(bundledDataTx);
-			bundledDataTx.prepareChunks(bundledDataTx.data);
+			await bundledDataTx.prepareChunks(bundledDataTx.data);
 			const uploader = new ArFSTransactionUploader({ transaction: bundledDataTx, arweave });
 			// Get current time and update the database
 			const currentTime = Math.round(Date.now() / 1000);
