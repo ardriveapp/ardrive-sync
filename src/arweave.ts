@@ -123,23 +123,30 @@ export async function prepareArFSDriveTransaction(
 export async function prepareArFSDataTransaction(
 	user: ArDriveUser,
 	fileData: Buffer,
-	fileMetaData: ArFSFileMetaData
+	fileMetaData: ArFSFileMetaData,
+	holder: string,
+	tip: string
 ): Promise<Transaction> {
 	// Create the arweave transaction using the file data and private key
-	const transaction = await arweave.createTransaction({ data: fileData }, JSON.parse(user.walletPrivateKey));
+	const transaction = await arweave.createTransaction(
+		{ data: fileData, target: holder, quantity: tip },
+		JSON.parse(user.walletPrivateKey)
+	);
+
+	transaction.addTag('App-Name', appName);
+	transaction.addTag('App-Version', appVersion);
+	if (tip !== '0') {
+		transaction.addTag('Tip-Type', 'data upload');
+	}
 
 	// If the file is not public, we must encrypt it
 	if (fileMetaData.isPublic === 0) {
 		// Tag file with Content-Type, Cipher and Cipher-IV
-		transaction.addTag('App-Name', appName);
-		transaction.addTag('App-Version', appVersion);
 		transaction.addTag('Content-Type', 'application/octet-stream');
 		transaction.addTag('Cipher', fileMetaData.cipher);
 		transaction.addTag('Cipher-IV', fileMetaData.dataCipherIV);
 	} else {
 		// Tag file with public tags only
-		transaction.addTag('App-Name', appName);
-		transaction.addTag('App-Version', appVersion);
 		transaction.addTag('Content-Type', fileMetaData.contentType);
 	}
 
@@ -307,7 +314,6 @@ export async function downloadArDriveFileByTx(user: ArDriveUser, fileToDownload:
 export async function uploadArDriveFiles(user: ArDriveUser): Promise<string> {
 	try {
 		let filesUploaded = 0;
-		let totalPrice = 0;
 		console.log('---Uploading All Queued Files and Folders---');
 		const filesToUpload = getFilesToUploadFromSyncTable(user.login);
 		if (Object.keys(filesToUpload).length > 0) {
@@ -321,7 +327,6 @@ export async function uploadArDriveFiles(user: ArDriveUser): Promise<string> {
 						console.log('Uploading file data and metadata - %s', fileToUpload.fileName);
 						const uploadedFile = await uploadArFSFileData(user, fileToUpload);
 						fileToUpload.dataTxId = uploadedFile.dataTxId;
-						totalPrice += uploadedFile.arPrice; // Sum up all of the fees paid
 						await uploadArFSFileMetaData(user, fileToUpload);
 					} else if (+fileToUpload.fileMetaDataSyncStatus === 1) {
 						console.log('Uploading file metadata only - %s', fileToUpload.fileName);
@@ -335,8 +340,6 @@ export async function uploadArDriveFiles(user: ArDriveUser): Promise<string> {
 			});
 		}
 		if (filesUploaded > 0) {
-			// Send the tip to the ArDrive community
-			await sendArDriveCommunityTip(user.walletPrivateKey, totalPrice);
 			console.log('Uploaded %s files to your ArDrive!', filesUploaded);
 
 			// Check if this was the first upload of the user's drive, if it was then upload a Drive transaction as well

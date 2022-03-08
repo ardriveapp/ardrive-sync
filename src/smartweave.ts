@@ -5,6 +5,7 @@ import { arweave } from './arweave';
 
 // Gets a random ArDrive token holder based off their weight (amount of tokens they hold)
 export async function selectTokenHolder(): Promise<string | undefined> {
+	console.log('Getting a random ArDrive Token Holder...');
 	// Read the ArDrive Smart Contract to get the latest state
 	const state = await readContract(arweave, communityTxId);
 	const balances = state.balances;
@@ -40,5 +41,6 @@ export async function selectTokenHolder(): Promise<string | undefined> {
 	}
 	// Get a random holder based off of the weighted list of holders
 	const randomHolder = weightedRandom(weighted);
+	console.log('Sending ArDrive Community Tip to %s', randomHolder);
 	return randomHolder;
 }

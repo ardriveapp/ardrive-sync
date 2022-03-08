@@ -8,11 +8,12 @@ import { JWKInterface } from './../types/arfs_Types';
 import { ArDriveUser, ArFSDriveMetaData, ArFSEncryptedData, ArFSFileMetaData } from './../types/base_Types';
 import * as updateDb from './../db/db_update';
 import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from '../crypto';
-import { estimateArCost } from '../node';
 import { createDataUploader, createFileDataTransaction, createFileFolderMetaDataTransaction } from './../transactions';
-import { assumedMetadataTxARPrice } from '../constants';
 import { encryptFileOrFolderData } from '../common';
 import { ArFSTransactionUploader } from '../arfs_transaction_uploader';
+import { arDriveCommunityOracle } from '../ardrive_community_oracle';
+import { selectTokenHolder } from '../smartweave';
+import { GatewayOracle } from '../gateway_oracle';
 
 // Takes a buffer and ArFS File Metadata and creates an ArFS Data Transaction using V2 Transaction with proper GQL tags
 export async function newArFSFileData(
@@ -80,21 +81,25 @@ export async function newArFSFileMetaData(
 export async function uploadArFSFileData(
 	user: ArDriveUser,
 	fileToUpload: ArFSFileMetaData
-): Promise<{ dataTxId: string; arPrice: number }> {
+): Promise<{ dataTxId: string }> {
 	let transaction;
 	let dataTxId = '';
-	let arPrice = 0;
 	try {
-		arPrice = await estimateArCost(fileToUpload.fileSize);
-		arPrice += assumedMetadataTxARPrice;
+		// Get the random token holder and determine how much they will earn from this bundled upload
+		const winstonPrice = await new GatewayOracle().getWinstonPriceForByteCount(fileToUpload.fileSize);
+		let tip = Math.round(await arDriveCommunityOracle.getCommunityARTip(winstonPrice));
+		let holder = await selectTokenHolder();
+		if (holder === undefined) {
+			holder = '';
+			tip = 0;
+		}
 
 		if (fileToUpload.isPublic === 0) {
 			// The file is private and we must encrypt
 			console.log(
-				'Encrypting and uploading the PRIVATE file %s (%d bytes) at %s to the Permaweb',
+				'Encrypting and uploading the PRIVATE file %s (%d bytes) to the Permaweb',
 				fileToUpload.filePath,
-				fileToUpload.fileSize,
-				arPrice
+				fileToUpload.fileSize
 			);
 			// Derive the drive and file keys in order to encrypt it with ArFS encryption
 			const driveKey: Buffer = await deriveDriveKey(
@@ -112,27 +117,38 @@ export async function uploadArFSFileData(
 			fileToUpload.cipher = encryptedData.cipher;
 
 			// Create the Arweave transaction.  It will add the correct ArFS tags depending if it is public or private
-			transaction = await arweaveCore.prepareArFSDataTransaction(user, encryptedData.data, fileToUpload);
+			transaction = await arweaveCore.prepareArFSDataTransaction(
+				user,
+				encryptedData.data,
+				fileToUpload,
+				holder,
+				tip.toString()
+			);
 		} else {
 			// The file is public
 			console.log(
-				'Uploading the PUBLIC file %s (%d bytes) at %s to the Permaweb',
+				'Uploading the PUBLIC file %s (%d bytes) to the Permaweb',
 				fileToUpload.filePath,
-				fileToUpload.fileSize,
-				arPrice
+				fileToUpload.fileSize
 			);
 			// Get the file data to upload
 			const fileData = fs.readFileSync(fileToUpload.filePath);
 
 			// Create the Arweave transaction.  It will add the correct ArFS tags depending if it is public or private
-			transaction = await arweaveCore.prepareArFSDataTransaction(user, fileData, fileToUpload);
+			transaction = await arweaveCore.prepareArFSDataTransaction(
+				user,
+				fileData,
+				fileToUpload,
+				holder,
+				tip.toString()
+			);
 		}
 
 		// Update the file's data transaction ID
 		fileToUpload.dataTxId = transaction.id;
 
 		// Create the File Uploader object
-		// const uploader = await createDataUploader(transaction);
+		// const uploader = await createDataUploader(transaction); // this is used for sequential chunk uploading
 		transaction.prepareChunks(transaction.data);
 		const uploader = new ArFSTransactionUploader({ transaction, arweave });
 
@@ -156,19 +172,20 @@ export async function uploadArFSFileData(
 
 		// If the uploaded is completed successfully, update the uploadTime of the file so we can track the status
 		if (uploader.isComplete) {
+			console.log('SUCCESS %s file data was submitted with TX %s', fileToUpload.filePath, fileToUpload.dataTxId);
 			const currentTime = Math.round(Date.now() / 1000);
 			await updateDb.updateFileUploadTimeInSyncTable(fileToUpload.id, currentTime);
 		}
 		dataTxId = fileToUpload.dataTxId;
-		return { dataTxId, arPrice };
+		return { dataTxId };
 	} catch (err) {
 		console.log(err);
-		return { dataTxId, arPrice };
+		return { dataTxId };
 	}
 }
 
 // Tags and Uploads a single file/folder metadata to your ArDrive using Arweave V2 Transactions
-export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: ArFSFileMetaData) {
+export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: ArFSFileMetaData): Promise<string> {
 	let transaction;
 	let secondaryFileMetaDataTags = {};
 	try {
@@ -240,7 +257,7 @@ export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: Ar
 		// If the uploaded is completed successfully, update the uploadTime of the file so we can track the status
 		if (uploader.isComplete) {
 			console.log(
-				'SUCCESS %s metadata was submitted with TX %s',
+				'SUCCESS %s file metadata was submitted with TX %s',
 				fileToUpload.filePath,
 				fileToUpload.metaDataTxId
 			);

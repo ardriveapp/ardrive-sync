@@ -3,7 +3,6 @@ import Transaction from 'arweave/node/lib/transaction';
 import Arweave from 'arweave';
 import { AxiosResponse } from 'axios';
 import { writeFileSync } from 'fs';
-import { formatBytes } from './common';
 
 interface Chunk {
 	data_root: string;
@@ -101,10 +100,7 @@ export class ArFSTransactionUploader {
 			return;
 		}
 
-		console.log('this.totalChunks', this.totalChunks);
-		console.log('this.chunkOffset', this.chunkOffset);
 		const initialChunksToGet = Math.min(this.totalChunks - this.chunkOffset, this.maxConcurrentChunks);
-		console.log('getting this many chunks', initialChunksToGet);
 
 		const initialChunks = (() => {
 			const chunksToSend: Chunk[] = [];
@@ -114,15 +110,12 @@ export class ArFSTransactionUploader {
 			return chunksToSend;
 		})();
 
-		console.log('chunks.length', initialChunks.length);
 		this.chunkOffset += initialChunks.length;
-		console.log('new this.chunkOffset after getting chunks', this.chunkOffset);
 		await Promise.all(initialChunks.map((chunk) => this.uploadChunk(chunk)));
 	}
 
 	private async uploadChunk(chunk: Chunk) {
 		try {
-			console.log('sending chunk');
 			await this.retryRequestUntilMaxErrors(this.arweave.api.post(`chunk`, chunk));
 		} catch (err) {
 			throw new Error(`Too many errors encountered while posting chunks: ${err}`);
@@ -131,9 +124,7 @@ export class ArFSTransactionUploader {
 		this.uploadedChunks++;
 
 		if (this.chunkOffset < this.totalChunks) {
-			console.log('Resident Set Size:', formatBytes(+process.memoryUsage().rss));
 			// Start next chunk when this one finishes
-			console.log('getting new chunk at offset:', this.chunkOffset);
 			await this.uploadChunk(this.transaction.getChunk(this.chunkOffset++, this.transaction.data));
 		}
 		return;
@@ -150,7 +141,6 @@ export class ArFSTransactionUploader {
 			: new Transaction(Object.assign({}, this.transaction, { data: new Uint8Array(0) }));
 
 		try {
-			console.log('posting tx');
 			await this.retryRequestUntilMaxErrors(this.arweave.api.post(`tx`, transactionToUpload));
 		} catch (err) {
 			throw new Error(`Too many errors encountered while posting transaction headers:  ${err}`);
@@ -181,17 +171,13 @@ export class ArFSTransactionUploader {
 				throw new Error(`Fatal error uploading chunk ${this.chunkOffset}: ${error}`);
 			} else {
 				this.totalErrors++;
-				console.log('this.totalErrors', this.totalErrors);
 				if (this.totalErrors >= MAX_ERRORS) {
 					throw new Error(`Unable to complete request: ${error}`);
 				} else {
-					console.log('delaying');
 					// Jitter delay after failed requests -- subtract up to 30% from ERROR_DELAY
 					await new Promise((res) => setTimeout(res, ERROR_DELAY - ERROR_DELAY * Math.random() * 0.3));
 
 					// Retry the request
-					console.log('Resident Set Size:', formatBytes(+process.memoryUsage().rss));
-					console.log('retrying request');
 					await request;
 				}
 			}
