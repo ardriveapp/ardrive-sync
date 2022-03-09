@@ -6,16 +6,15 @@ import * as common from './common';
 import * as fs from 'fs';
 import { bundleAndSignData, createData, DataItem } from 'arbundles';
 import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
-import { appName, appVersion, arFSVersion } from './constants';
+import { appName, appVersion, arFSVersion, gatewayURL } from './constants';
 import { GatewayOracle } from './gateway_oracle';
-// import { createDataUploader } from './transactions';
 import { ArFSFileMetaData } from './types/base_Types';
 import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from './crypto';
 import { GQLTagInterface } from './types/gql_Types';
 import { arDriveCommunityOracle } from './ardrive_community_oracle';
-import { selectTokenHolder } from './smartweave';
+import { selectTokenHolderFromVerto } from './smartweave';
 import { ArweaveSigner } from 'arbundles/src/signing';
-import { ArFSTransactionUploader } from './arfs_transaction_uploader';
+import { MultiChunkTxUploader } from './multi_chunk_tx_uploader';
 
 const maxBundleSize = 503316480;
 const maxDataItemSize = 500;
@@ -152,7 +151,7 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 		const size = bundle.getRaw().length;
 
 		// Get the random token holder and determine how much they will earn from this bundled upload
-		const holder = await selectTokenHolder();
+		const holder = await selectTokenHolderFromVerto();
 		const winstonPrice = await new GatewayOracle().getWinstonPriceForByteCount(size);
 		const tip = Math.round(await arDriveCommunityOracle.getCommunityARTip(winstonPrice));
 
@@ -168,14 +167,20 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 		// Sign the bundle
 		await arweave.transactions.sign(bundledDataTx, JSON.parse(user.walletPrivateKey));
 		if (bundledDataTx !== null) {
-			//const uploader = await createDataUploader(bundledDataTx);
 			await bundledDataTx.prepareChunks(bundledDataTx.data);
-			const uploader = new ArFSTransactionUploader({ transaction: bundledDataTx, arweave });
+			const transactionUploader = new MultiChunkTxUploader({
+				transaction: bundledDataTx,
+				gatewayUrl: new URL(gatewayURL)
+			});
 			// Get current time and update the database
 			const currentTime = Math.round(Date.now() / 1000);
 			await updateDb.addToBundleTable(user.login, bundledDataTx.id, 2, currentTime);
 
-			// Begin to upload chunks and upload the database as needed
+			await transactionUploader.batchUploadChunks();
+			console.log('SUCCESS data bundle was submitted with TX %s', bundledDataTx.id);
+			return bundledDataTx.id;
+
+			/* Begin to upload chunks and upload the database as needed (old, sequential uploads)
 			while (!uploader.isComplete) {
 				//await uploader.uploadChunk();
 				await uploader.batchUploadChunks();
@@ -185,7 +190,7 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 			if (uploader.isComplete) {
 				console.log('SUCCESS data bundle was submitted with TX %s', bundledDataTx.id);
 				return bundledDataTx.id;
-			}
+			}*/
 		}
 		return 'Error';
 	} catch (err) {

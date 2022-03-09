@@ -1,5 +1,4 @@
 // arfs.js
-import { arweave } from '../arweave';
 import * as arweaveCore from '../arweave';
 import * as fs from 'fs';
 import * as clientTypes from '../types/client_Types';
@@ -9,11 +8,11 @@ import { ArDriveUser, ArFSDriveMetaData, ArFSEncryptedData, ArFSFileMetaData } f
 import * as updateDb from './../db/db_update';
 import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from '../crypto';
 import { createDataUploader, createFileDataTransaction, createFileFolderMetaDataTransaction } from './../transactions';
-import { encryptFileOrFolderData } from '../common';
-import { ArFSTransactionUploader } from '../arfs_transaction_uploader';
+import { encryptFileOrFolderData, gatewayURL } from '../common';
 import { arDriveCommunityOracle } from '../ardrive_community_oracle';
-import { selectTokenHolder } from '../smartweave';
+import { selectTokenHolderFromVerto } from '../smartweave';
 import { GatewayOracle } from '../gateway_oracle';
+import { MultiChunkTxUploader } from '../multi_chunk_tx_uploader';
 
 // Takes a buffer and ArFS File Metadata and creates an ArFS Data Transaction using V2 Transaction with proper GQL tags
 export async function newArFSFileData(
@@ -78,17 +77,13 @@ export async function newArFSFileMetaData(
 }
 
 // Tags and Uploads a single file from the local disk to your ArDrive using Arweave V2 Transactions
-export async function uploadArFSFileData(
-	user: ArDriveUser,
-	fileToUpload: ArFSFileMetaData
-): Promise<{ dataTxId: string }> {
+export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFileMetaData): Promise<string> {
 	let transaction;
-	let dataTxId = '';
 	try {
 		// Get the random token holder and determine how much they will earn from this bundled upload
 		const winstonPrice = await new GatewayOracle().getWinstonPriceForByteCount(fileToUpload.fileSize);
 		let tip = Math.round(await arDriveCommunityOracle.getCommunityARTip(winstonPrice));
-		let holder = await selectTokenHolder();
+		let holder = await selectTokenHolderFromVerto();
 		if (holder === undefined) {
 			holder = '';
 			tip = 0;
@@ -146,12 +141,6 @@ export async function uploadArFSFileData(
 
 		// Update the file's data transaction ID
 		fileToUpload.dataTxId = transaction.id;
-
-		// Create the File Uploader object
-		// const uploader = await createDataUploader(transaction); // this is used for sequential chunk uploading
-		await transaction.prepareChunks(transaction.data);
-		const uploader = new ArFSTransactionUploader({ transaction, arweave });
-
 		// Set the file metadata to indicate it s being synchronized and update its record in the database
 		fileToUpload.fileDataSyncStatus = 2;
 		await updateDb.updateFileDataSyncStatus(
@@ -162,25 +151,20 @@ export async function uploadArFSFileData(
 			fileToUpload.id
 		);
 
-		// Begin to upload chunks and upload the database as needed
-		while (!uploader.isComplete) {
-			// const nextChunk = await arweaveCore.uploadDataChunk(uploader);
-			await uploader.batchUploadChunks();
-			await updateDb.setFileUploaderObject(JSON.stringify(uploader), fileToUpload.id);
-			console.log(`${uploader.pctComplete}% complete, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
-		}
-
-		// If the uploaded is completed successfully, update the uploadTime of the file so we can track the status
-		if (uploader.isComplete) {
-			console.log('SUCCESS %s file data was submitted with TX %s', fileToUpload.filePath, fileToUpload.dataTxId);
-			const currentTime = Math.round(Date.now() / 1000);
-			await updateDb.updateFileUploadTimeInSyncTable(fileToUpload.id, currentTime);
-		}
-		dataTxId = fileToUpload.dataTxId;
-		return { dataTxId };
+		// Create the File Uploader object
+		await transaction.prepareChunks(transaction.data);
+		const transactionUploader = new MultiChunkTxUploader({
+			transaction,
+			gatewayUrl: new URL(gatewayURL)
+		});
+		await transactionUploader.batchUploadChunks();
+		console.log('SUCCESS %s file data was submitted with TX %s', fileToUpload.filePath, fileToUpload.dataTxId);
+		const currentTime = Math.round(Date.now() / 1000);
+		await updateDb.updateFileUploadTimeInSyncTable(fileToUpload.id, currentTime);
+		return fileToUpload.dataTxId;
 	} catch (err) {
 		console.log(err);
-		return { dataTxId };
+		return 'Error';
 	}
 }
 
@@ -251,7 +235,6 @@ export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: Ar
 		// Begin to upload chunks
 		while (!uploader.isComplete) {
 			await uploader.uploadChunk();
-			console.log(`${uploader.pctComplete}% complete, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
 		}
 
 		// If the uploaded is completed successfully, update the uploadTime of the file so we can track the status
@@ -321,7 +304,6 @@ export async function uploadArFSDriveMetaData(user: ArDriveUser, drive: ArFSDriv
 		// Begin to upload chunks
 		while (!uploader.isComplete) {
 			await uploader.uploadChunk();
-			console.log(`${uploader.pctComplete}% complete, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
 		}
 
 		if (uploader.isComplete) {

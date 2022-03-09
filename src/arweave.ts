@@ -321,14 +321,16 @@ export async function uploadArDriveFiles(user: ArDriveUser): Promise<string> {
 			// Ready to upload
 			await asyncForEach(filesToUpload, async (fileToUpload: ArFSFileMetaData) => {
 				if (fileToUpload.entityType === 'file') {
-					// console.log ("Uploading file - %s", fileToUpload.fileName)
 					// Check to see if we have to upload the File Data and Metadata
 					// If not, we just check to see if we have to update metadata.
 					if (+fileToUpload.fileDataSyncStatus === 1) {
 						console.log('Uploading file data and metadata - %s', fileToUpload.fileName);
-						const uploadedFile = await uploadArFSFileData(user, fileToUpload);
-						fileToUpload.dataTxId = uploadedFile.dataTxId;
-						await uploadArFSFileMetaData(user, fileToUpload);
+						fileToUpload.dataTxId = await uploadArFSFileData(user, fileToUpload);
+						if (fileToUpload.dataTxId !== 'Error') {
+							await uploadArFSFileMetaData(user, fileToUpload);
+						} else {
+							console.log("This file's data was not uploaded properly, please retry");
+						}
 					} else if (+fileToUpload.fileMetaDataSyncStatus === 1) {
 						console.log('Uploading file metadata only - %s', fileToUpload.fileName);
 						await uploadArFSFileMetaData(user, fileToUpload);
