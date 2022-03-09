@@ -1,6 +1,7 @@
 import { asyncForEach, sleep } from './common';
 import { ArDriveUser, ArFSDriveMetaData, ArFSFileMetaData } from './types/base_Types';
 import {
+	getDriveRootFolderFromSyncTable,
 	// getDriveRootFolderFromSyncTable,
 	getFilesToUploadFromSyncTable,
 	getLatestFolderVersionFromSyncTable,
@@ -354,13 +355,13 @@ export async function uploadArDriveFiles(user: ArDriveUser): Promise<string> {
 					// Create the Drive metadata transaction as submit as V2
 					const success = await uploadArFSDriveMetaData(user, newDrive);
 					console.log(success);
-					/*if (success) {
+					if (success) {
 						// Create the Drive Root folder and submit as V2 transaction
 						const driveRootFolder: ArFSFileMetaData = await getDriveRootFolderFromSyncTable(
 							newDrive.rootFolderId
 						);
-						// await uploadArFSFileMetaData(user, driveRootFolder);
-					}*/
+						await uploadArFSFileMetaData(user, driveRootFolder);
+					}
 				});
 			}
 		}
