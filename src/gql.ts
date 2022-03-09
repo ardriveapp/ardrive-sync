@@ -2208,7 +2208,7 @@ export async function getAllMyDataFileTxs(
 }
 
 // Gets the Arweave-address that was used to create the first drive metadata transaction of the given Drive-Id
-export async function getSharedDriveOwner(driveId: string, lastBlockHeight: number): Promise<String | undefined> {
+export async function getSharedDriveOwner(driveId: string, lastBlockHeight: number): Promise<string | undefined> {
 	let edges: gqlTypes.GQLEdgeInterface[] = [];
 	let primaryGraphQLURL = graphQLURL;
 	const backupGraphQLURL = graphQLURL.replace('.net', '.dev');
