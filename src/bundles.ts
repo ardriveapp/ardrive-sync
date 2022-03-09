@@ -179,18 +179,6 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 			await transactionUploader.batchUploadChunks();
 			console.log('SUCCESS data bundle was submitted with TX %s', bundledDataTx.id);
 			return bundledDataTx.id;
-
-			/* Begin to upload chunks and upload the database as needed (old, sequential uploads)
-			while (!uploader.isComplete) {
-				//await uploader.uploadChunk();
-				await uploader.batchUploadChunks();
-				await updateDb.setBundleUploaderObject(JSON.stringify(uploader), bundledDataTx.id);
-				console.log(`${uploader.pctComplete}% complete, ${uploader.uploadedChunks}/${uploader.totalChunks}`);
-			}
-			if (uploader.isComplete) {
-				console.log('SUCCESS data bundle was submitted with TX %s', bundledDataTx.id);
-				return bundledDataTx.id;
-			}*/
 		}
 		return 'Error';
 	} catch (err) {

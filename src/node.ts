@@ -206,7 +206,11 @@ export async function getPriceOfNextUploadBatch(login: string): Promise<types.Up
 			}
 
 			// Add in MetaData TX for a file
-			if (+fileToUpload.fileMetaDataSyncStatus === 1 && fileToUpload.entityType === 'file') {
+			if (
+				+fileToUpload.fileMetaDataSyncStatus === 1 &&
+				fileToUpload.entityType === 'file' &&
+				+fileToUpload.fileDataSyncStatus !== 1
+			) {
 				totalArweaveMetadataPrice += assumedMetadataTxARPrice;
 				uploadBatch.totalNumberOfMetaDataUploads += 1;
 			}

@@ -12,6 +12,8 @@ import { hashElement, HashElementOptions } from 'folder-hash';
 import { Wallet } from './types/arfs_Types';
 import { ArDriveUser } from './types/base_Types';
 import { defaultCipher } from './constants';
+import axiosRetry, { exponentialDelay } from 'axios-retry';
+import axios, { AxiosResponse } from 'axios';
 
 export const prodAppUrl = 'https://app.ardrive.io';
 export const stagingAppUrl = 'https://staging.ardrive.io';
@@ -542,6 +544,17 @@ export async function encryptFileOrFolderData(
 	return encryptedData;
 }
 
-export async function createManifest(): Promise<number> {
-	return 0;
+export async function retryFetch(reqURL: string): Promise<AxiosResponse<any>> {
+	const axiosInstance = axios.create();
+	const maxRetries = 10;
+	axiosRetry(axiosInstance, {
+		retries: maxRetries,
+		retryDelay: (retryNumber) => {
+			console.error(`Retry attempt ${retryNumber}/${maxRetries} of request to ${reqURL}`);
+			return exponentialDelay(retryNumber);
+		}
+	});
+	return await axiosInstance.get(reqURL, {
+		responseType: 'arraybuffer'
+	});
 }
