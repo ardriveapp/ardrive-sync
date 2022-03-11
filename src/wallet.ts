@@ -7,7 +7,7 @@ import { getAllDrivesByLoginFromDriveTable, getUserFromProfile } from './db/db_g
 import { decryptText, encryptText } from './crypto';
 import { removeByDriveIdFromSyncTable, removeFromDriveTable, removeFromProfileTable } from './db/db_delete';
 import { ArFSDriveMetaData } from './types/base_Types';
-import { asyncForEach } from './common';
+import { asyncForEach, retryFetch } from './common';
 import { createArDriveProfile } from './db/db_update';
 
 // Gets a public key for a given JWK
@@ -27,7 +27,8 @@ export async function getCachedWallet(
 // Get the balance of an Arweave wallet
 export async function getWalletBalance(walletPublicKey: string): Promise<number> {
 	try {
-		let balance = await arweave.wallets.getBalance(walletPublicKey);
+		const response = await retryFetch(`https://arweave.net/wallet/${walletPublicKey}/balance`);
+		let balance = await response.data;
 		balance = arweave.ar.winstonToAr(balance);
 		return +balance;
 	} catch (err) {
