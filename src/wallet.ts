@@ -26,15 +26,21 @@ export async function getCachedWallet(
 
 // Get the balance of an Arweave wallet
 export async function getWalletBalance(walletPublicKey: string): Promise<number> {
-	try {
-		const response = await retryFetch(`https://arweave.net/wallet/${walletPublicKey}/balance`);
-		let balance = await response.data;
-		balance = arweave.ar.winstonToAr(balance);
-		return +balance;
-	} catch (err) {
-		console.log(err);
-		return 0;
+	let retry = 0;
+	let winston;
+	let balance = '0';
+	while (retry <= 10) {
+		try {
+			const response = await retryFetch(`https://arweave.net/wallet/${walletPublicKey}/balance`);
+			winston = await response.data;
+			balance = arweave.ar.winstonToAr(winston);
+			break;
+		} catch (err) {
+			retry += 1;
+			console.log('Retry count %s: Error getting wallet balance...', retry);
+		}
 	}
+	return +balance;
 }
 
 // Creates a new Arweave wallet JWK comprised of a private key and public key
