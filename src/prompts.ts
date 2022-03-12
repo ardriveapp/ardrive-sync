@@ -105,7 +105,7 @@ export const promptForSync = async (): Promise<boolean> => {
 		'  Would you like to sync the metadata for your files? (Default is Yes) Y/N '
 	);
 	if (autoSyncApproval.toUpperCase() === 'N') {
-		console.log('  Your file metadata will not be synchronized and no files will be downloaded.');
+		console.log('  Your file metadata will not be synchronized and files will not be downloaded.');
 		return false; // disable download
 	} else {
 		return true; // disable download
