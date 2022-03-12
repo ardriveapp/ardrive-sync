@@ -93,7 +93,19 @@ export const promptForDownload = async (): Promise<boolean> => {
 		'  Would you like to download your permanent files that are not local? (Default is Yes) Y/N '
 	);
 	if (autoSyncApproval.toUpperCase() === 'N') {
-		console.log('  Your files will be not downloaded if they are not already local.');
+		console.log('  Your file metadata will be synced, but no files will be not downloaded.');
+		return false; // disable download
+	} else {
+		return true; // disable download
+	}
+};
+
+export const promptForSync = async (): Promise<boolean> => {
+	const autoSyncApproval: string = prompt(
+		'  Would you like to sync the metadata for your files? (Default is Yes) Y/N '
+	);
+	if (autoSyncApproval.toUpperCase() === 'N') {
+		console.log('  Your file metadata will not be synchronized and no files will be downloaded.');
 		return false; // disable download
 	} else {
 		return true; // disable download

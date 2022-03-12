@@ -35,6 +35,7 @@ async function main() {
 	let fileDownloadConflicts: ArFSFileMetaData[] = [];
 	let useBundles = false; // Will use regular v2 transactions or ANS104 bundles
 	let downloadFiles = true;
+	let syncFiles = true;
 
 	// Start background task to fetch ArDrive community tip setting
 	arDriveCommunityOracle.setExactTipSettingInBackground();
@@ -52,7 +53,10 @@ async function main() {
 		user = await cli.promptForNewUserInfo(login);
 		// Allow the user to toggle bundles
 		useBundles = await cli.promptForBundles();
-		downloadFiles = await cli.promptForDownload();
+		syncFiles = await cli.promptForSync();
+		if (syncFiles) {
+			downloadFiles = await cli.promptForDownload();
+		}
 		const loginPassword = user.dataProtectionKey;
 		await addNewUser(user.dataProtectionKey, user);
 		user = await getUser(loginPassword, login);
@@ -67,8 +71,10 @@ async function main() {
 
 			// Allow the user to toggle bundles
 			useBundles = await cli.promptForBundles();
-
-			downloadFiles = await cli.promptForDownload();
+			syncFiles = await cli.promptForSync();
+			if (syncFiles) {
+				downloadFiles = await cli.promptForDownload();
+			}
 
 			// Allow the user to add other drives
 			await cli.promptToAddOrCreatePersonalPrivateDrive(user);
@@ -106,16 +112,21 @@ async function main() {
 	await setupDrives(user.login, user.syncFolderPath);
 
 	// Get all of the public and private files for the user and store in the local database before starting folder watcher
-	await getMyArDriveFilesFromPermaWeb(user);
+	if (syncFiles) {
+		await getMyArDriveFilesFromPermaWeb(user);
+	}
 
 	// Download any files from Arweave that need to be synchronized locally
-	if (downloadFiles) {
+	if (downloadFiles && syncFiles) {
 		await downloadMyArDriveFiles(user);
 	}
 
 	// Get latest wallet balance
 	const balance = await getWalletBalance(user.walletPublicKey);
 	await setProfileWalletBalance(+balance, login);
+
+	// Get all of the latest personal public and private drives for the user, and store in the local database
+	await getAllMyPersonalDrives(user);
 
 	// Initialize Chokidar Folder Watcher by providing the Sync Folder Path, Private and Public ArDrive IDs
 	startWatchingFolders(user);
@@ -124,14 +135,13 @@ async function main() {
 	let loop = true;
 	while (loop === true) {
 		try {
-			// Get all of the latest personal public and private drives for the user, and store in the local database
-			await getAllMyPersonalDrives(user);
-
-			// Get all of the public and private files for the user and store in the local database
-			await getMyArDriveFilesFromPermaWeb(user);
+			if (syncFiles) {
+				// Get all of the public and private files for the user and store in the local database
+				await getMyArDriveFilesFromPermaWeb(user);
+			}
 
 			// Download any files from Arweave that need to be synchronized locally
-			if (downloadFiles) {
+			if (downloadFiles && syncFiles) {
 				await downloadMyArDriveFiles(user);
 			}
 
@@ -175,7 +185,7 @@ async function main() {
 			const balance = await getWalletBalance(user.walletPublicKey);
 			await setProfileWalletBalance(+balance, login);
 			console.log('%s Syncronization completed.  Current AR Balance: %s', dateTime, balance);
-			await sleep(30000);
+			await sleep(60000);
 		} catch (err) {
 			console.log(err);
 			loop = false;
