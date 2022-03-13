@@ -29,3 +29,4 @@ export const assumedMetadataTxARPrice = 0.000_002_500_000;
 
 //Note: Just to easily copy paste later where it's needed
 //import {prodAppUrl,stagingAppUrl,gatewayURL,appName,webAppName,appVersion,arFSVersion,cipher} from './constants';
+export const defaultMaxConcurrentChunks = 32;

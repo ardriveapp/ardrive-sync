@@ -13,6 +13,7 @@ import { arDriveCommunityOracle } from '../ardrive_community_oracle';
 import { selectTokenHolderFromVerto } from '../smartweave';
 import { GatewayOracle } from '../gateway_oracle';
 import { MultiChunkTxUploader } from '../multi_chunk_tx_uploader';
+import { defaultMaxConcurrentChunks } from '../constants';
 
 // Takes a buffer and ArFS File Metadata and creates an ArFS Data Transaction using V2 Transaction with proper GQL tags
 export async function newArFSFileData(
@@ -158,9 +159,26 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 
 		// Create the File Uploader object
 		await transaction.prepareChunks(transaction.data);
+		let debounce = false;
+		const shouldProgressLog =
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			transaction.chunks!.chunks.length > defaultMaxConcurrentChunks;
+
 		const transactionUploader = new MultiChunkTxUploader({
 			transaction,
-			gatewayUrl: new URL(gatewayURL)
+			gatewayUrl: new URL(gatewayURL),
+			progressCallback: shouldProgressLog
+				? (pct: number) => {
+						if (!debounce) {
+							console.info(`Transaction Upload Progress: ${pct}%`);
+							debounce = true;
+
+							setTimeout(() => {
+								debounce = false;
+							}, 250); // .25 sec debounce
+						}
+				  }
+				: undefined
 		});
 		console.log('Chunks prepared');
 		await transactionUploader.batchUploadChunks();

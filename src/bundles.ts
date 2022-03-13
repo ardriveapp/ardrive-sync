@@ -6,7 +6,7 @@ import * as common from './common';
 import * as fs from 'fs';
 import { bundleAndSignData, createData, DataItem } from 'arbundles';
 import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
-import { appName, appVersion, arFSVersion, gatewayURL } from './constants';
+import { appName, appVersion, arFSVersion, defaultMaxConcurrentChunks, gatewayURL } from './constants';
 import { GatewayOracle } from './gateway_oracle';
 import { ArFSFileMetaData } from './types/base_Types';
 import { deriveDriveKey, deriveFileKey, driveEncrypt, getFileAndEncrypt } from './crypto';
@@ -168,9 +168,26 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 		await arweave.transactions.sign(bundledDataTx, JSON.parse(user.walletPrivateKey));
 		if (bundledDataTx !== null) {
 			await bundledDataTx.prepareChunks(bundledDataTx.data);
+			let debounce = false;
+			const shouldProgressLog =
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				bundledDataTx.chunks!.chunks.length > defaultMaxConcurrentChunks;
+
 			const transactionUploader = new MultiChunkTxUploader({
 				transaction: bundledDataTx,
-				gatewayUrl: new URL(gatewayURL)
+				gatewayUrl: new URL(gatewayURL),
+				progressCallback: shouldProgressLog
+					? (pct: number) => {
+							if (!debounce) {
+								console.info(`Transaction Upload Progress: ${pct}%`);
+								debounce = true;
+
+								setTimeout(() => {
+									debounce = false;
+								}, 250); // .25 sec debounce
+							}
+					  }
+					: undefined
 			});
 			// Get current time and update the database
 			const currentTime = Math.round(Date.now() / 1000);
