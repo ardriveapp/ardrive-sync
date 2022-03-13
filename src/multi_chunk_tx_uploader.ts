@@ -132,6 +132,7 @@ export class MultiChunkTxUploader {
 		const uploadPromises: Promise<void>[] = [];
 		for (let index = 0; index < numOfConcurrentUploadPromises; index++) {
 			uploadPromises.push(this.uploadChunk());
+			console.log('in for loop for pushing chunks');
 		}
 
 		try {
@@ -152,7 +153,7 @@ export class MultiChunkTxUploader {
 	private async uploadChunk(): Promise<void> {
 		while (this.chunkOffset < this.totalChunks && !this.hasFailedRequests) {
 			const chunk = this.transaction.getChunk(this.chunkOffset++, this.transaction.data);
-
+			console.log('In upload chunk');
 			try {
 				await this.retryRequestUntilMaxErrors(() => axios.post(`${this.gatewayUrl.href}chunk`, chunk));
 			} catch (err) {
@@ -220,6 +221,7 @@ export class MultiChunkTxUploader {
 				resp = `${err}`;
 			}
 
+			console.log('in retry request until max errors');
 			if (respIsError(resp) || resp?.status !== 200) {
 				error = respIsError(resp) ? resp : resp.statusText;
 
