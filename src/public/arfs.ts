@@ -89,14 +89,11 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 			tip = 0;
 		}
 
+		console.log('Got tip and token holder');
 		if (fileToUpload.isPublic === 0) {
 			// The file is private and we must encrypt
-			console.log(
-				'Encrypting and uploading the PRIVATE file %s (%d bytes) to the Permaweb',
-				fileToUpload.filePath,
-				fileToUpload.fileSize
-			);
 			// Derive the drive and file keys in order to encrypt it with ArFS encryption
+			console.log('Prepping private file');
 			const driveKey: Buffer = await deriveDriveKey(
 				user.dataProtectionKey,
 				fileToUpload.driveId,
@@ -119,13 +116,15 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 				holder,
 				tip.toString()
 			);
+			console.log(
+				'Encrypting and uploading the PRIVATE file %s (%d bytes) to the Permaweb with txid %s',
+				fileToUpload.filePath,
+				fileToUpload.fileSize,
+				transaction.id
+			);
 		} else {
 			// The file is public
-			console.log(
-				'Uploading the PUBLIC file %s (%d bytes) to the Permaweb',
-				fileToUpload.filePath,
-				fileToUpload.fileSize
-			);
+			console.log('Prepping public file');
 			// Get the file data to upload
 			const fileData = fs.readFileSync(fileToUpload.filePath);
 
@@ -136,6 +135,12 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 				fileToUpload,
 				holder,
 				tip.toString()
+			);
+			console.log(
+				'Uploading the PUBLIC file %s (%d bytes) to the Permaweb with txid %s',
+				fileToUpload.filePath,
+				fileToUpload.fileSize,
+				transaction.id
 			);
 		}
 
@@ -157,6 +162,7 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 			transaction,
 			gatewayUrl: new URL(gatewayURL)
 		});
+		console.log('Chunks prepared');
 		await transactionUploader.batchUploadChunks();
 		console.log('SUCCESS %s file data was submitted with TX %s', fileToUpload.filePath, fileToUpload.dataTxId);
 		const currentTime = Math.round(Date.now() / 1000);
