@@ -170,7 +170,7 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 			gatewayApi: new GatewayAPI({ gatewayUrl: new URL(gatewayURL) }),
 			progressCallback: shouldProgressLog
 				? (pct: number) => {
-						if (!debounce) {
+						if (!debounce || pct === 100) {
 							console.info(`Transaction Upload Progress: ${pct}%`);
 							debounce = true;
 
