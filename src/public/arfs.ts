@@ -14,6 +14,7 @@ import { selectTokenHolderFromVerto } from '../smartweave';
 import { GatewayOracle } from '../gateway_oracle';
 import { MultiChunkTxUploader } from '../multi_chunk_tx_uploader';
 import { defaultMaxConcurrentChunks } from '../constants';
+import { GatewayAPI } from '../gateway_api';
 
 // Takes a buffer and ArFS File Metadata and creates an ArFS Data Transaction using V2 Transaction with proper GQL tags
 export async function newArFSFileData(
@@ -166,7 +167,7 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 
 		const transactionUploader = new MultiChunkTxUploader({
 			transaction,
-			gatewayUrl: new URL(gatewayURL),
+			gatewayApi: new GatewayAPI({ gatewayUrl: new URL(gatewayURL) }),
 			progressCallback: shouldProgressLog
 				? (pct: number) => {
 						if (!debounce) {

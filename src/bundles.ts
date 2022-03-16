@@ -15,6 +15,7 @@ import { arDriveCommunityOracle } from './ardrive_community_oracle';
 import { selectTokenHolderFromVerto } from './smartweave';
 import { ArweaveSigner } from 'arbundles/src/signing';
 import { MultiChunkTxUploader } from './multi_chunk_tx_uploader';
+import { GatewayAPI } from './gateway_api';
 
 const maxBundleSize = 503316480;
 const maxDataItemSize = 500;
@@ -175,7 +176,7 @@ export async function uploadArFSDataBundle(user: types.ArDriveUser, dataItems: D
 
 			const transactionUploader = new MultiChunkTxUploader({
 				transaction: bundledDataTx,
-				gatewayUrl: new URL(gatewayURL),
+				gatewayApi: new GatewayAPI({ gatewayUrl: new URL(gatewayURL) }),
 				progressCallback: shouldProgressLog
 					? (pct: number) => {
 							if (!debounce) {
