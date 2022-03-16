@@ -1,7 +1,7 @@
 {
 	"name": "ardrive-sync",
 	"version": "0.1.10",
-	"description": "ArDrive Sync is a small app that synchronzies content to and from the permaweb, using the old CLI components.",
+	"description": "ArDrive Sync is a small app that synchronizes content to and from the permaweb, using the old CLI components.",
 	"main": "./lib/exports.js",
 	"bin": {
 		"ardrive-sync": "./lib/index.js"
@@ -71,7 +71,7 @@
 		"tsc-files": "^1.1.2"
 	},
 	"scripts": {
-		"clean": "rimraf [lib .nyc_output node_modules]",
+		"clean": "rimraf [ lib .nyc_output ]",
 		"format": "prettier --write \"src/**/*.ts\"",
 		"lint": "eslint . --ext .ts",
 		"lintfix": "eslint . --ext .ts --fix",
