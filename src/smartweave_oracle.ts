@@ -19,6 +19,8 @@ export interface CommunityContractData {
 export class SmartWeaveContractOracle implements ContractOracle {
 	/** @TODO Add timeout to check for readContract calls that take too long and gracefully handles errors */
 	async readContract(txId: string, blockHeight?: number): Promise<CommunityContractData> {
+		// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+		// @ts-ignore -- Silence type error between arweave versions
 		return readContract(arweave, txId, blockHeight);
 	}
 
