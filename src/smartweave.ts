@@ -8,6 +8,9 @@ import fetch from 'node-fetch';
 export async function selectTokenHolder(): Promise<string | undefined> {
 	console.log('Getting a random ArDrive Token Holder...');
 	// Read the ArDrive Smart Contract to get the latest state
+
+	// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+	// @ts-ignore -- Silence type error between arweave versions
 	const state = await readContract(arweave, communityTxId);
 	const balances = state.balances;
 	const vault = state.vault;
