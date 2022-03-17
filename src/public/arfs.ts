@@ -181,7 +181,6 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 				  }
 				: undefined
 		});
-		console.log('Chunks prepared');
 		await transactionUploader.batchUploadChunks();
 		console.log('SUCCESS %s file data was submitted with TX %s', fileToUpload.filePath, fileToUpload.dataTxId);
 		const currentTime = Math.round(Date.now() / 1000);
@@ -244,9 +243,6 @@ export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: Ar
 		// Update the file's data transaction ID
 		fileToUpload.metaDataTxId = transaction.id;
 
-		// Create the File Uploader object
-		const uploader = await createDataUploader(transaction);
-
 		// Set the file metadata to indicate it s being synchronized and update its record in the database
 		fileToUpload.fileMetaDataSyncStatus = 2;
 		await updateDb.updateFileMetaDataSyncStatus(
@@ -257,21 +253,37 @@ export async function uploadArFSFileMetaData(user: ArDriveUser, fileToUpload: Ar
 			fileToUpload.id
 		);
 
-		// Begin to upload chunks
-		while (!uploader.isComplete) {
-			await uploader.uploadChunk();
-		}
+		// Create the File Uploader object
+		await transaction.prepareChunks(transaction.data);
+		let debounce = false;
+		const shouldProgressLog =
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			transaction.chunks!.chunks.length > defaultMaxConcurrentChunks;
 
-		// If the uploaded is completed successfully, update the uploadTime of the file so we can track the status
-		if (uploader.isComplete) {
-			console.log(
-				'SUCCESS %s file metadata was submitted with TX %s',
-				fileToUpload.filePath,
-				fileToUpload.metaDataTxId
-			);
-			const currentTime = Math.round(Date.now() / 1000);
-			await updateDb.updateFileUploadTimeInSyncTable(fileToUpload.id, currentTime);
-		}
+		const transactionUploader = new MultiChunkTxUploader({
+			transaction,
+			gatewayApi: new GatewayAPI({ gatewayUrl: new URL(gatewayURL) }),
+			progressCallback: shouldProgressLog
+				? (pct: number) => {
+						if (!debounce || pct === 100) {
+							console.info(`Transaction Upload Progress: ${pct}%`);
+							debounce = true;
+
+							setTimeout(() => {
+								debounce = false;
+							}, 250); // .25 sec debounce
+						}
+				  }
+				: undefined
+		});
+		await transactionUploader.batchUploadChunks();
+		console.log(
+			'SUCCESS %s file metadata was submitted with TX %s',
+			fileToUpload.filePath,
+			fileToUpload.metaDataTxId
+		);
+		const currentTime = Math.round(Date.now() / 1000);
+		await updateDb.updateFileUploadTimeInSyncTable(fileToUpload.id, currentTime);
 
 		return 'Success';
 	} catch (err) {
