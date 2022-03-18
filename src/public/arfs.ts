@@ -91,11 +91,9 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 			tip = 0;
 		}
 
-		console.log('Got tip and token holder');
 		if (fileToUpload.isPublic === 0) {
 			// The file is private and we must encrypt
 			// Derive the drive and file keys in order to encrypt it with ArFS encryption
-			console.log('Prepping private file');
 			const driveKey: Buffer = await deriveDriveKey(
 				user.dataProtectionKey,
 				fileToUpload.driveId,
@@ -126,7 +124,6 @@ export async function uploadArFSFileData(user: ArDriveUser, fileToUpload: ArFSFi
 			);
 		} else {
 			// The file is public
-			console.log('Prepping public file');
 			// Get the file data to upload
 			const fileData = fs.readFileSync(fileToUpload.filePath);
 

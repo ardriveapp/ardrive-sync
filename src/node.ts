@@ -4,7 +4,7 @@ import * as getDb from './db/db_get';
 import * as common from './common';
 import { deleteFromSyncTable } from './db/db_delete';
 import { getTransactionStatus } from './gateway';
-import { assumedMetadataTxARPrice } from './constants';
+import { assumedMetadataTxARPrice, MAX_CONFIRMATIONS } from './constants';
 import { GatewayOracle } from './gateway_oracle';
 import { ArweaveOracle } from './arweave_oracle';
 import { CommunityOracle } from './community_oracle';
@@ -14,15 +14,15 @@ import { arDriveCommunityOracle } from './ardrive_community_oracle';
 export async function checkUploadStatus(login: string): Promise<string> {
 	try {
 		console.log('---Checking Upload Status---');
+		const today = Math.round(Date.now() / 1000);
 		let permaWebLink: string;
-		let status: number;
+		let confirmations: number;
 
 		// Get all data bundles that need to have their V2 transactions checked (bundleSyncStatus of 2)
 		const unsyncedBundles: types.ArDriveBundle[] = getDb.getAllUploadedBundlesFromBundleTable(login);
 		await common.asyncForEach(unsyncedBundles, async (unsyncedBundle: types.ArDriveBundle) => {
-			status = await getTransactionStatus(unsyncedBundle.bundleTxId);
-			// Status 200 means the file has been mined
-			if (status === 200) {
+			confirmations = await getTransactionStatus(unsyncedBundle.bundleTxId);
+			if (confirmations >= MAX_CONFIRMATIONS) {
 				console.log('SUCCESS! Data bundle was uploaded with TX of %s', unsyncedBundle.bundleTxId);
 				console.log('...your most recent files can now be accessed on the PermaWeb!');
 				await updateDb.completeBundleFromBundleTable(unsyncedBundle.id);
@@ -35,18 +35,16 @@ export async function checkUploadStatus(login: string): Promise<string> {
 					// Complete the files by setting permaWebLink, fileMetaDataSyncStatus and fileDataSyncStatus to 3
 					await updateDb.completeFileDataItemFromSyncTable(permaWebLink, dataItemToComplete.id);
 				});
-				// Status 202 means the file is being mined
-			} else if (status === 202) {
-				console.log(
-					'%s data bundle is still being uploaded to the PermaWeb (TX_PENDING)',
-					unsyncedBundle.bundleTxId
-				);
-				// Status 410 or 404 means the file is still being processed.  If 410/404 occurs after 30 minutes, then the transaction has been orphaned/failed
-			} else if (status === 410 || status === 404) {
+			} else {
 				const uploadTime = await getDb.getBundleUploadTimeFromBundleTable(unsyncedBundle.id);
-				const currentTime = Math.round(Date.now() / 1000);
-				if (currentTime - uploadTime < 1800000) {
-					// 30 minutes
+				const cutoffTime = uploadTime.uploadTime + 60 * 60 * 1000; // Cancel if the tx is older than 60 minutes
+				if (today < cutoffTime) {
+					console.log(
+						'%s data bundle is still being uploaded to the PermaWeb (TX_PENDING) with %s confirmations',
+						unsyncedBundle.bundleTxId,
+						confirmations
+					);
+				} else {
 					console.log('%s data bundle failed to be uploaded (TX_FAILED)', unsyncedBundle.bundleTxId);
 
 					// Since it failed, lets retry data transaction by flipping the sync status to 1
@@ -67,13 +65,14 @@ export async function checkUploadStatus(login: string): Promise<string> {
 		await common.asyncForEach(unsyncedFiles, async (unsyncedFile: types.ArFSFileMetaData) => {
 			// Is the file data uploaded on the web?
 			if (+unsyncedFile.fileDataSyncStatus === 2) {
-				status = await getTransactionStatus(unsyncedFile.dataTxId);
-				if (status === 200) {
+				confirmations = await getTransactionStatus(unsyncedFile.dataTxId);
+				if (confirmations >= MAX_CONFIRMATIONS) {
 					permaWebLink = common.gatewayURL.concat(unsyncedFile.dataTxId);
 					console.log(
-						'SUCCESS! %s data was uploaded with TX of %s',
+						'SUCCESS! %s (%s) data was mined with %s confirmations',
 						unsyncedFile.filePath,
-						unsyncedFile.dataTxId
+						unsyncedFile.dataTxId,
+						confirmations
 					);
 					console.log('...you can access the file here %s', common.gatewayURL.concat(unsyncedFile.dataTxId));
 					const fileToComplete = {
@@ -82,22 +81,18 @@ export async function checkUploadStatus(login: string): Promise<string> {
 						id: unsyncedFile.id
 					};
 					await updateDb.completeFileDataFromSyncTable(fileToComplete);
-				} else if (status === 202) {
-					console.log(
-						'%s data is still being uploaded to the PermaWeb (TX_PENDING) %s',
-						unsyncedFile.filePath,
-						unsyncedFile.id
-					);
-				} else if (status === 410 || status === 404) {
+				} else {
 					const uploadTime = await getDb.getFileUploadTimeFromSyncTable(unsyncedFile.id);
-					const today = new Date();
-					const cutoffTime = new Date(today.getTime() - 60 * 60 * 1000); // Cancel if the tx is older than 60 minutes
-					if (uploadTime.uploadTime < cutoffTime.getTime()) {
+					const cutoffTime = uploadTime.uploadTime + 60 * 60 * 1000; // Cancel if the tx is older than 60 minutes
+					if (today < cutoffTime) {
 						console.log(
-							'%s data failed to be uploaded (TX_FAILED) %s',
+							'%s (%s) data is still being uploaded to the PermaWeb (TX_PENDING) with %s confirmations',
 							unsyncedFile.filePath,
-							unsyncedFile.id
+							unsyncedFile.dataTxId,
+							confirmations
 						);
+					} else {
+						console.log('%s (%s) data failed to be mined', unsyncedFile.filePath, unsyncedFile.dataTxId);
 						// Retry data transaction
 						await updateDb.setFileDataSyncStatus(1, unsyncedFile.id);
 					}
@@ -106,13 +101,14 @@ export async function checkUploadStatus(login: string): Promise<string> {
 
 			// Is the file metadata uploaded on the web?
 			if (+unsyncedFile.fileMetaDataSyncStatus === 2) {
-				status = await getTransactionStatus(unsyncedFile.metaDataTxId);
-				if (status === 200) {
+				confirmations = await getTransactionStatus(unsyncedFile.metaDataTxId);
+				if (confirmations >= 5) {
 					permaWebLink = common.gatewayURL.concat(unsyncedFile.dataTxId);
 					console.log(
-						'SUCCESS! %s metadata was uploaded with TX of %s',
+						'SUCCESS! %s (%s) metadata was mined with %s confirmations',
+						unsyncedFile.metaDataTxId,
 						unsyncedFile.filePath,
-						unsyncedFile.metaDataTxId
+						confirmations
 					);
 					const fileMetaDataToComplete = {
 						fileMetaDataSyncStatus: 3,
@@ -120,25 +116,24 @@ export async function checkUploadStatus(login: string): Promise<string> {
 						id: unsyncedFile.id
 					};
 					await updateDb.completeFileMetaDataFromSyncTable(fileMetaDataToComplete);
-				} else if (status === 202) {
-					console.log(
-						'%s metadata is still being uploaded to the PermaWeb (TX_PENDING) %s',
-						unsyncedFile.filePath,
-						unsyncedFile.id
-					);
-				} else if (status === 410 || status === 404) {
+				} else {
 					const uploadTime = await getDb.getFileUploadTimeFromSyncTable(unsyncedFile.id);
-					const today = new Date();
-					const cutoffTime = new Date(today.getTime() - 60 * 60 * 1000); // Cancel if the tx is older than 60 minutes
-					if (uploadTime.uploadTime < cutoffTime.getTime()) {
-						// 30 minutes
+					const cutoffTime = uploadTime.uploadTime + 60 * 60 * 1000; // Cancel if the tx is older than 60 minutes
+					if (today < cutoffTime) {
 						console.log(
-							'%s metadata failed to be uploaded (TX_FAILED) %s',
+							'%s (%s) metadata is still being uploaded to the PermaWeb (TX_PENDING) with %s confirmations',
 							unsyncedFile.filePath,
-							unsyncedFile.id
+							unsyncedFile.metaDataTxId,
+							confirmations
 						);
-						// Retry metadata transaction
-						await updateDb.setFileMetaDataSyncStatus(1, unsyncedFile.id);
+					} else {
+						console.log(
+							'%s (%s) metadata failed to be mined',
+							unsyncedFile.filePath,
+							unsyncedFile.metaDataTxId
+						);
+						// Retry data transaction
+						await updateDb.setFileDataSyncStatus(1, unsyncedFile.id);
 					}
 				}
 			}
@@ -147,8 +142,8 @@ export async function checkUploadStatus(login: string): Promise<string> {
 		// Get all drives that need to have their transactions checked (metaDataSyncStatus of 2)
 		const unsyncedDrives: types.ArFSDriveMetaData[] = getDb.getAllUploadedDrivesFromDriveTable();
 		await common.asyncForEach(unsyncedDrives, async (unsyncedDrive: types.ArFSDriveMetaData) => {
-			status = await getTransactionStatus(unsyncedDrive.metaDataTxId);
-			if (status === 200) {
+			confirmations = await getTransactionStatus(unsyncedDrive.metaDataTxId);
+			if (confirmations >= MAX_CONFIRMATIONS) {
 				console.log(
 					'SUCCESS! %s Drive metadata was uploaded with TX of %s',
 					unsyncedDrive.driveName,
@@ -157,15 +152,23 @@ export async function checkUploadStatus(login: string): Promise<string> {
 				// Update the drive sync status to 3 so it is not checked any more
 				const metaDataSyncStatus = 3;
 				await updateDb.completeDriveMetaDataFromDriveTable(metaDataSyncStatus, unsyncedDrive.driveId);
-			} else if (status === 202) {
-				console.log(
-					'%s Drive metadata is still being uploaded to the PermaWeb (TX_PENDING)',
-					unsyncedDrive.driveName
-				);
-			} else if (status === 410 || status === 404) {
-				console.log('%s Drive metadata failed to be uploaded (TX_FAILED)', unsyncedDrive.driveName);
-				// Retry metadata transaction
-				await updateDb.setFileMetaDataSyncStatus(1, unsyncedDrive.id);
+			} else {
+				const uploadTime = unsyncedDrive.unixTime;
+				const cutoffTime = uploadTime + 60 * 60 * 1000; // Cancel if the tx is older than 60 minutes
+				if (today < cutoffTime) {
+					console.log(
+						'%s (%s) Drive metadata is still being uploaded to the PermaWeb (TX_PENDING)',
+						unsyncedDrive.driveName
+					);
+				} else {
+					console.log(
+						'%s (%s) Drive metadata failed to be uploaded (TX_FAILED)',
+						unsyncedDrive.driveName,
+						unsyncedDrive.metaDataTxId
+					);
+					// Retry metadata transaction
+					await updateDb.setFileMetaDataSyncStatus(1, unsyncedDrive.id);
+				}
 			}
 		});
 

@@ -129,7 +129,7 @@ async function main() {
 	await getAllMyPersonalDrives(user);
 
 	// Initialize Chokidar Folder Watcher by providing the Sync Folder Path, Private and Public ArDrive IDs
-	startWatchingFolders(user);
+	await startWatchingFolders(user);
 
 	// Continually check for things to process and actions to notify the user
 	let loop = true;

@@ -94,7 +94,7 @@ export const getFileUploadTimeFromSyncTable = (id: number) => {
 	return get(`SELECT uploadTime FROM Sync WHERE id = ?`, [id]);
 };
 
-export const getBundleUploadTimeFromBundleTable = (id: number): Promise<number> => {
+export const getBundleUploadTimeFromBundleTable = (id: number) => {
 	return get(`SELECT uploadTime FROM Bundle WHERE id = ?`, [id]);
 };
 

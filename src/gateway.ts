@@ -1,4 +1,5 @@
 import { arweave } from './arweave';
+import * as common from './common';
 import axios from 'axios';
 import axiosRetry, { exponentialDelay } from 'axios-retry';
 
@@ -28,13 +29,36 @@ export async function getTransactionData(txId: string): Promise<string | Uint8Ar
 }
 
 // Get the latest status of a transaction
-export async function getTransactionStatus(txid: string): Promise<number> {
+export async function getTransactionStatus(txId: string): Promise<number> {
 	try {
-		const response = await arweave.transactions.getStatus(txid);
-		return response.status;
+		const protocol = 'https';
+		const host = 'arweave.net';
+		const portStr = '';
+		const reqURL = `${protocol}://${host}${portStr}/tx/${txId}/status`;
+		const axiosInstance = axios.create();
+		const maxRetries = 5;
+		axiosRetry(axiosInstance, {
+			retries: maxRetries,
+			retryDelay: (retryNumber) => {
+				console.error(`Retry attempt ${retryNumber}/${maxRetries} of request to ${reqURL}`);
+				return exponentialDelay(retryNumber);
+			}
+		});
+		const {
+			data: txData
+		}: {
+			data: Buffer;
+		} = await axiosInstance.get(reqURL, {
+			responseType: 'arraybuffer'
+		});
+		const dataString = await common.Utf8ArrayToStr(txData);
+		if (dataString === 'Pending') {
+			return 0;
+		}
+		const dataJSON = await JSON.parse(dataString);
+		return +dataJSON.number_of_confirmations;
 	} catch (err) {
-		// console.log(err);
-		return 0;
+		return -1;
 	}
 }
 
