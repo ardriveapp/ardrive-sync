@@ -22,7 +22,7 @@ export const gatewayURL = 'https://arweave.net/';
 
 export const appName = 'ArDrive-Sync';
 export const webAppName = 'ArDrive-Web';
-export const appVersion = '0.1.10';
+export const appVersion = '0.1.11';
 export const arFSVersion = '0.11';
 
 // Pauses application

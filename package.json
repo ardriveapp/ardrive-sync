@@ -1,6 +1,6 @@
 {
 	"name": "ardrive-sync",
-	"version": "0.1.10",
+	"version": "0.1.11",
 	"description": "ArDrive Sync is a small app that synchronizes content to and from the permaweb, using the old CLI components.",
 	"main": "./lib/exports.js",
 	"bin": {
