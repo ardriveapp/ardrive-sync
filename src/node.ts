@@ -83,13 +83,21 @@ export async function checkUploadStatus(login: string): Promise<string> {
 					};
 					await updateDb.completeFileDataFromSyncTable(fileToComplete);
 				} else if (status === 202) {
-					console.log('%s data is still being uploaded to the PermaWeb (TX_PENDING)', unsyncedFile.filePath);
+					console.log(
+						'%s data is still being uploaded to the PermaWeb (TX_PENDING) %s',
+						unsyncedFile.filePath,
+						unsyncedFile.id
+					);
 				} else if (status === 410 || status === 404) {
 					const uploadTime = await getDb.getFileUploadTimeFromSyncTable(unsyncedFile.id);
 					const today = new Date();
 					const cutoffTime = new Date(today.getTime() - 60 * 60 * 1000); // Cancel if the tx is older than 60 minutes
 					if (uploadTime.uploadTime < cutoffTime.getTime()) {
-						console.log('%s data failed to be uploaded (TX_FAILED)', unsyncedFile.filePath);
+						console.log(
+							'%s data failed to be uploaded (TX_FAILED) %s',
+							unsyncedFile.filePath,
+							unsyncedFile.id
+						);
 						// Retry data transaction
 						await updateDb.setFileDataSyncStatus(1, unsyncedFile.id);
 					}
@@ -114,8 +122,9 @@ export async function checkUploadStatus(login: string): Promise<string> {
 					await updateDb.completeFileMetaDataFromSyncTable(fileMetaDataToComplete);
 				} else if (status === 202) {
 					console.log(
-						'%s metadata is still being uploaded to the PermaWeb (TX_PENDING)',
-						unsyncedFile.filePath
+						'%s metadata is still being uploaded to the PermaWeb (TX_PENDING) %s',
+						unsyncedFile.filePath,
+						unsyncedFile.id
 					);
 				} else if (status === 410 || status === 404) {
 					const uploadTime = await getDb.getFileUploadTimeFromSyncTable(unsyncedFile.id);
@@ -123,7 +132,11 @@ export async function checkUploadStatus(login: string): Promise<string> {
 					const cutoffTime = new Date(today.getTime() - 60 * 60 * 1000); // Cancel if the tx is older than 60 minutes
 					if (uploadTime.uploadTime < cutoffTime.getTime()) {
 						// 30 minutes
-						console.log('%s metadata failed to be uploaded (TX_FAILED)', unsyncedFile.filePath);
+						console.log(
+							'%s metadata failed to be uploaded (TX_FAILED) %s',
+							unsyncedFile.filePath,
+							unsyncedFile.id
+						);
 						// Retry metadata transaction
 						await updateDb.setFileMetaDataSyncStatus(1, unsyncedFile.id);
 					}
