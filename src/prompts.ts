@@ -18,7 +18,7 @@ import {
 import { addDriveToDriveTable, setDriveToSync } from './db/db_update';
 import { getAllMyPersonalDrives } from './download';
 import { deleteDrive } from './profile';
-import { addSharedPublicDrive } from './public/drives';
+import { addSharedPublicDrive } from './sharing';
 import { ArFSDriveMetaData, ArDriveUser, UploadBatch } from './types/base_Types';
 import { createArDriveWallet, getCachedWallet } from './wallet';
 

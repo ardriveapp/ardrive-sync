@@ -5,7 +5,7 @@ import * as getDb from './db/db_get';
 import * as common from './common';
 import * as fs from 'fs';
 import { bundleAndSignData, createData, DataItem } from 'arbundles';
-import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './public/arfs';
+import { uploadArFSDriveMetaData, uploadArFSFileMetaData } from './arfs';
 import { appName, appVersion, arFSVersion, defaultMaxConcurrentChunks, gatewayURL } from './constants';
 import { GatewayOracle } from './gateway_oracle';
 import { ArFSFileMetaData } from './types/base_Types';
@@ -452,7 +452,7 @@ export function prepareArFSMetaDataItemTags(fileMetaData: ArFSFileMetaData): { n
 	} else {
 		tags.push({ name: 'Content-Type', value: 'application/json' });
 	}
-	tags.push({ name: 'ArFS', value: common.arFSVersion });
+	tags.push({ name: 'ArFS', value: arFSVersion });
 	tags.push({ name: 'Entity-Type', value: fileMetaData.entityType });
 	tags.push({ name: 'Drive-Id', value: fileMetaData.driveId });
 

@@ -5,22 +5,14 @@ import * as gqlTypes from './types/gql_Types';
 import * as getDb from './db/db_get';
 import * as updateDb from './db/db_update';
 
-import { getTransactionData } from './gateway';
 import { deriveDriveKey, driveDecrypt, deriveFileKey, fileDecrypt } from './crypto';
 
-import Arweave from 'arweave';
 import { CipherType, DriveAuthMode, DrivePrivacy, EntityType } from './types/type_guards';
-
-const arweave = Arweave.init({
-	host: 'arweave.net', // Arweave Gateway
-	//host: 'arweave.dev', // Arweave Dev Gateway
-	port: 443,
-	protocol: 'https',
-	timeout: 600000
-});
+import { appName, appVersion, arFSVersion, gatewayURL } from './constants';
+import { arweave, getTransactionData } from './arweave';
 
 // Our primary GQL url
-const graphQLURL = common.gatewayURL.concat('graphql');
+const graphQLURL = gatewayURL.concat('graphql');
 export const primaryGraphQLURL = 'https://arweave.net/graphql';
 export const backupGraphQLURL = 'https://arweave.dev/graphql';
 
@@ -1671,7 +1663,7 @@ export async function getPrivateTransactionCipherIV(txid: string): Promise<strin
 
 // Uses GraphQl to pull necessary drive information from another user's Shared Public Drives
 export async function getSharedPublicDrive(driveId: string): Promise<types.ArFSDriveMetaData> {
-	const drive: types.ArFSDriveMetaData = types.ArFSDriveMetaData.Empty(common.appName, common.appVersion, driveId);
+	const drive: types.ArFSDriveMetaData = types.ArFSDriveMetaData.Empty(appName, appVersion, driveId);
 	const drive_owner = await getSharedDriveOwner(driveId, 0);
 
 	// Abort right away if the owner-address couldn't be found
@@ -1770,7 +1762,7 @@ export async function getPublicDriveRootFolderTxId(driveId: string, folderId: st
         first: 1
         sort: HEIGHT_ASC
         tags: [
-          { name: "ArFS", values: "${common.arFSVersion}" }
+          { name: "ArFS", values: "${arFSVersion}" }
           { name: "Drive-Id", values: "${driveId}" }
           { name: "Folder-Id", values: "${folderId}"}
         ]
@@ -1817,7 +1809,7 @@ export async function getPrivateDriveRootFolderTxId(
         first: 1
         sort: HEIGHT_ASC
         tags: [
-          { name: "ArFS", values: "${common.arFSVersion}" }
+          { name: "ArFS", values: "${arFSVersion}" }
           { name: "Drive-Id", values: "${driveId}" }
           { name: "Folder-Id", values: "${folderId}"}
         ]
@@ -1886,7 +1878,7 @@ export async function getAllMyPublicArDriveIds(
 				first: 100
 				owners: ["${walletPublicKey}"]
 				tags: [
-					{ name: "ArFS", values: "${common.arFSVersion}" }
+					{ name: "ArFS", values: "${arFSVersion}" }
 					{ name: "Entity-Type", values: "drive" }
 					{ name: "Drive-Privacy", values: "public" }])
 				{
@@ -2002,7 +1994,7 @@ export async function getAllMyPrivateArDriveIds(
       first: 100
       owners: ["${user.walletPublicKey}"]
       tags: [
-        { name: "ArFS", values: "${common.arFSVersion}" }
+        { name: "ArFS", values: "${arFSVersion}" }
         { name: "Entity-Type", values: "drive" }
         { name: "Drive-Privacy", values: "private" }
       ]
@@ -2145,7 +2137,7 @@ export async function getAllMyDataFileTxs(
         block: {min: ${lastBlockHeight}}
         owners: ["${walletPublicKey}"]
         tags: [
-		  { name: "ArFS", values: "${common.arFSVersion}" }
+		  { name: "ArFS", values: "${arFSVersion}" }
           { name: "Drive-Id", values: "${driveId}" }
           { name: "Entity-Type", values: ["file", "folder"]}
         ]
@@ -2219,7 +2211,7 @@ export async function getSharedDriveOwner(driveId: string, lastBlockHeight: numb
       transactions(
         block: {min: ${lastBlockHeight}}
         tags: [
-		  { name: "ArFS", values: "${common.arFSVersion}" }
+		  { name: "ArFS", values: "${arFSVersion}" }
           { name: "Drive-Id", values: "${driveId}" }
           { name: "Entity-Type", values: ["drive"]}
         ]
@@ -2336,7 +2328,7 @@ export async function getAllMySharedDataFileTxs(
         block: {min: ${lastBlockHeight}}
 		owners: "${drive_owner}"
         tags: [
-		  { name: "ArFS", values: "${common.arFSVersion}" }
+		  { name: "ArFS", values: "${arFSVersion}" }
           { name: "Drive-Id", values: "${driveId}" }
           { name: "Entity-Type", values: ["file", "folder"]}
         ]
@@ -2494,7 +2486,7 @@ export async function getFileMetaDataFromTx(fileDataTx: gqlTypes.GQLEdgeInterfac
 				fileToSync.fileMetaDataSyncStatus = 3;
 				fileToSync.dataTxId = '0';
 				fileToSync.lastModifiedDate = fileToSync.unixTime;
-				fileToSync.permaWebLink = common.gatewayURL.concat(fileToSync.dataTxId);
+				fileToSync.permaWebLink = gatewayURL.concat(fileToSync.dataTxId);
 				fileToSync.cloudOnly = 1;
 				await updateDb.addFileToSyncTable(fileToSync); // This must be handled better.
 				return 'Error Decrypting';
@@ -2523,7 +2515,7 @@ export async function getFileMetaDataFromTx(fileDataTx: gqlTypes.GQLEdgeInterfac
 			fileToSync.lastModifiedDate = dataJSON.lastModifiedDate; // Convert to milliseconds
 			fileToSync.dataTxId = dataJSON.dataTxId;
 			fileToSync.contentType = common.extToMime(dataJSON.name);
-			fileToSync.permaWebLink = common.gatewayURL.concat(dataJSON.dataTxId);
+			fileToSync.permaWebLink = gatewayURL.concat(dataJSON.dataTxId);
 
 			if (fileToSync.isPublic === 0) {
 				// if this is a private file, the CipherIV of the Data transaction should also be captured
@@ -2546,7 +2538,7 @@ export async function getFileMetaDataFromTx(fileDataTx: gqlTypes.GQLEdgeInterfac
 			// Perform specific actions for Folder entities
 		} else if (fileToSync.entityType === 'folder') {
 			fileToSync.lastModifiedDate = fileToSync.unixTime;
-			fileToSync.permaWebLink = common.gatewayURL.concat(fileToSync.metaDataTxId);
+			fileToSync.permaWebLink = gatewayURL.concat(fileToSync.metaDataTxId);
 		}
 
 		console.log(

@@ -6,24 +6,13 @@ import * as getDb from './db/db_get';
 import * as updateDb from './db/db_update';
 import fetch from 'node-fetch';
 import path, { dirname } from 'path';
-import { checksumFile, deriveDriveKey, deriveFileKey, fileEncrypt } from './crypto';
+import { checksumFile, deriveFileKey, fileEncrypt } from './crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { hashElement, HashElementOptions } from 'folder-hash';
 import { Wallet } from './types/arfs_Types';
-import { ArDriveUser } from './types/base_Types';
-import { defaultCipher } from './constants';
+import { appName, appVersion, arFSVersion, defaultCipher } from './constants';
 import axiosRetry, { exponentialDelay } from 'axios-retry';
 import axios, { AxiosResponse } from 'axios';
-
-export const prodAppUrl = 'https://app.ardrive.io';
-export const stagingAppUrl = 'https://staging.ardrive.io';
-export const gatewayURL = 'https://arweave.net/';
-//export const gatewayURL = 'https://arweave.dev/';
-
-export const appName = 'ArDrive-Sync';
-export const webAppName = 'ArDrive-Web';
-export const appVersion = '0.1.11';
-export const arFSVersion = '0.11';
 
 // Pauses application
 export async function sleep(ms: number): Promise<number> {
@@ -68,39 +57,6 @@ export function extToMime(fullPath: string): string {
 	return m === false ? 'unknown' : m;
 }
 
-/* Copies one folder to another folder location
-const copyFolder = (oldFolderPath: string, newFolderPath: string) : string => {
-  const readStream = fs.createReadStream(oldFolderPath);
-  const writeStream = fs.createWriteStream(newFolderPath);
-
-  readStream.on('error', err => {
-	console.log ("Error copying folder");
-	console.log (err);
-	return 'Error';
-  });
-
-  writeStream.on('error', err => {
-	console.log ("Error copying folder");
-	console.log (err);
-	return 'Error';
-  });
-
-  readStream.on('close', function () {
-	  fs.unlink(oldFolderPath, err => {
-		if (err) {
-		  console.log ("Error finishing folder copy");
-		  console.log (err);
-		  return 'Error';
-		}
-		return 'Success';
-	  });
-  });
-
-  // Write the file
-  readStream.pipe(writeStream);
-  return 'Success'
-} */
-
 // Will try to move the folder and revert to a copy if it fails
 export function moveFolder(oldFolderPath: string, newFolderPath: string): string {
 	try {
@@ -126,19 +82,6 @@ export function checkOrCreateFolder(folderPath: string): string {
 		console.log('Folder not found.  Creating new directory at %s', folderPath);
 		fs.mkdirSync(folderPath || '.');
 		return folderPath;
-	}
-}
-
-export function checkFolderExistsSync(folderPath: string): boolean {
-	try {
-		const stats = fs.statSync(folderPath);
-		if (stats.isDirectory()) {
-			return true; // directory exists
-		} else {
-			return false; // not a directory
-		}
-	} catch (err) {
-		return false; // directory doesnt exist
 	}
 }
 
@@ -380,59 +323,6 @@ export async function createNewPrivateDrive(login: string, driveName: string): P
 	};
 	console.log('Creating a new private drive for %s, %s | %s', login, driveName, driveId);
 	return drive;
-}
-
-// Derives a file key from the drive key and formats it into a Private file sharing link using the file id
-export async function createPrivateFileSharingLink(
-	user: ArDriveUser,
-	fileToShare: types.ArFSFileMetaData
-): Promise<string> {
-	let fileSharingUrl = '';
-	try {
-		const driveKey: Buffer = await deriveDriveKey(
-			user.dataProtectionKey,
-			fileToShare.driveId,
-			user.walletPrivateKey
-		);
-		const fileKey: Buffer = await deriveFileKey(fileToShare.fileId, driveKey);
-		fileSharingUrl = stagingAppUrl.concat(
-			'/#/file/',
-			fileToShare.fileId,
-			'/view?fileKey=',
-			fileKey.toString('base64')
-		);
-	} catch (err) {
-		console.log(err);
-		console.log('Cannot generate Private File Sharing Link');
-		fileSharingUrl = 'Error';
-	}
-	return fileSharingUrl;
-}
-
-// Creates a Public file sharing link using the File Id.
-export async function createPublicFileSharingLink(fileToShare: types.ArFSFileMetaData): Promise<string> {
-	let fileSharingUrl = '';
-	try {
-		fileSharingUrl = stagingAppUrl.concat('/#/file/', fileToShare.fileId, '/view');
-	} catch (err) {
-		console.log(err);
-		console.log('Cannot generate Public File Sharing Link');
-		fileSharingUrl = 'Error';
-	}
-	return fileSharingUrl;
-}
-
-// Creates a Public drive sharing link using the Drive Id
-export async function createPublicDriveSharingLink(driveToShare: types.ArFSDriveMetaData): Promise<string> {
-	let driveSharingUrl = '';
-	try {
-		driveSharingUrl = stagingAppUrl.concat('/#/drives/', driveToShare.driveId);
-	} catch (err) {
-		console.log(err);
-		console.log('Cannot generate Public Drive Sharing Link');
-		driveSharingUrl = 'Error';
-	}
-	return driveSharingUrl;
 }
 
 export async function Utf8ArrayToStr(array: any): Promise<string> {

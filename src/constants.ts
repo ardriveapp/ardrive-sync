@@ -3,7 +3,6 @@ import { CipherType } from './types/type_guards';
 export const prodAppUrl = 'https://app.ardrive.io';
 export const stagingAppUrl = 'https://staging.ardrive.io';
 export const gatewayURL = 'https://arweave.net/';
-//export const gatewayURL = 'https://arweave.dev/';
 
 export const appName = 'ArDrive-Sync';
 export const webAppName = 'ArDrive-Web';

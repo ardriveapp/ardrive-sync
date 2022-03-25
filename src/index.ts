@@ -2,6 +2,7 @@
 /* eslint-disable no-await-in-loop */
 // index.ts
 import { arDriveCommunityOracle } from './ardrive_community_oracle';
+import { checkUploadStatus, getPriceOfNextUploadBatch } from './arfs';
 import { uploadArDriveFiles } from './arweave';
 import { uploadArDriveFilesAndBundles } from './bundles';
 import { sleep } from './common';
@@ -10,7 +11,6 @@ import { getUserFromProfile, getMyFileDownloadConflicts } from './db/db_get';
 import { setProfileAutoSyncApproval, setProfileWalletBalance } from './db/db_update';
 import { getMyArDriveFilesFromPermaWeb, downloadMyArDriveFiles, getAllMyPersonalDrives } from './download';
 import { startWatchingFolders, resolveFileDownloadConflict } from './files';
-import { checkUploadStatus, getPriceOfNextUploadBatch } from './node';
 import { updateUserSyncFolderPath, setupDrives } from './profile';
 import * as cli from './prompts';
 import { ArDriveUser, ArFSFileMetaData, UploadBatch } from './types/base_Types';
