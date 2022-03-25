@@ -433,8 +433,7 @@ export async function checkUploadStatus(login: string): Promise<string> {
 			// Is the file metadata uploaded on the web?
 			if (+unsyncedFile.fileMetaDataSyncStatus === 2) {
 				confirmations = await getTransactionStatus(unsyncedFile.metaDataTxId);
-				if (confirmations >= 5) {
-					permaWebLink = constants.gatewayURL.concat(unsyncedFile.dataTxId);
+				if (confirmations >= MAX_CONFIRMATIONS) {
 					console.log(
 						'SUCCESS! %s (%s) metadata was mined with %s confirmations',
 						unsyncedFile.metaDataTxId,
