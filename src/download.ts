@@ -2,7 +2,9 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 // download.js
 import * as fs from 'fs';
-import { downloadArDriveFileByTx } from './arweave';
+import Axios from 'axios';
+import path, { dirname } from 'path';
+import ProgressBar from 'progress';
 import {
 	asyncForEach,
 	setNewFilePaths,
@@ -14,9 +16,10 @@ import {
 	setAllFileHashes,
 	setAllParentFolderIds,
 	setAllFolderSizes,
-	checkForMissingLocalFiles
+	checkForMissingLocalFiles,
+	sleep
 } from './common';
-import { checksumFile } from './crypto';
+import { checksumFile, deriveDriveKey, deriveFileKey, fileDecrypt } from './crypto';
 import {
 	getAllDrivesByPrivacyFromDriveTable,
 	getDriveLastBlockHeight,
@@ -35,9 +38,9 @@ import {
 	setPermaWebFileToCloudOnly,
 	updateFileHashInSyncTable,
 	addDriveToDriveTable,
-	setProfileLastBlockHeight
+	setProfileLastBlockHeight,
+	setFilePath
 } from './db/db_update';
-import { getLatestBlockHeight } from './gateway';
 import {
 	getAllMyDataFileTxs,
 	getFileMetaDataFromTx,
@@ -47,6 +50,8 @@ import {
 } from './gql';
 import { ArDriveUser, ArFSDriveMetaData, ArFSFileMetaData } from './types/base_Types';
 import { GQLEdgeInterface } from './types/gql_Types';
+import { gatewayURL } from './constants';
+import { getLatestBlockHeight } from './arweave';
 
 // Gets all of the files from your ArDrive (via ARQL) and loads them into the database.
 export async function getMyArDriveFilesFromPermaWeb(user: ArDriveUser): Promise<string> {
@@ -324,5 +329,113 @@ export async function getAllMyPersonalDrives(user: ArDriveUser): Promise<ArFSDri
 		console.log(err);
 		console.log('Error getting all Personal Drives');
 		return publicDrives;
+	}
+}
+
+// Downloads a single file from ArDrive by transaction
+export async function downloadArDriveFileByTx(user: ArDriveUser, fileToDownload: ArFSFileMetaData) {
+	try {
+		// Get the parent folder's path
+		const parentFolder: ArFSFileMetaData = await getLatestFolderVersionFromSyncTable(fileToDownload.parentFolderId);
+
+		// Check if this file's path has the right path from its parent folder.  This ensures folders moved on the web are properly moved locally
+		if (parentFolder.filePath !== path.dirname(fileToDownload.filePath)) {
+			// Update the file path in the database
+			console.log('Fixing file path to ', parentFolder.filePath);
+			fileToDownload.filePath = path.join(parentFolder.filePath, fileToDownload.fileName);
+			await setFilePath(fileToDownload.filePath, fileToDownload.id);
+		}
+
+		// Check if this is a folder.  If it is, we dont need to download anything and we create the folder.
+		const folderPath = dirname(fileToDownload.filePath);
+		if (!fs.existsSync(folderPath)) {
+			fs.mkdirSync(folderPath, { recursive: true });
+			await sleep(100);
+		}
+
+		const dataTxUrl = gatewayURL.concat(fileToDownload.dataTxId);
+		// Public files do not need decryption
+		if (+fileToDownload.isPublic === 1) {
+			console.log('Downloading %s', fileToDownload.filePath);
+			const writer = fs.createWriteStream(fileToDownload.filePath);
+			const response = await Axios({
+				method: 'get',
+				url: dataTxUrl,
+				responseType: 'stream'
+			});
+			const totalLength = response.headers['content-length'];
+			const progressBar = new ProgressBar('-> [:bar] :rate/bps :percent :etas', {
+				width: 40,
+				complete: '=',
+				incomplete: ' ',
+				renderThrottle: 1,
+				total: parseInt(totalLength)
+			});
+
+			response.data.on('data', (chunk: string | any[]) => progressBar.tick(chunk.length));
+			response.data.pipe(writer);
+
+			return new Promise((resolve, reject) => {
+				writer.on('error', (err) => {
+					writer.close();
+					reject(err);
+				});
+				writer.on('close', () => {
+					console.log('   Completed!', fileToDownload.filePath);
+					resolve(true);
+				});
+			});
+		} else {
+			// File is private and we must decrypt it
+			console.log('Downloading and decrypting %s', fileToDownload.filePath);
+			const writer = fs.createWriteStream(fileToDownload.filePath);
+			const response = await Axios({
+				method: 'get',
+				url: dataTxUrl,
+				responseType: 'stream'
+			});
+			const totalLength = response.headers['content-length'];
+			const progressBar = new ProgressBar('-> [:bar] :rate/bps :percent :etas', {
+				width: 40,
+				complete: '=',
+				incomplete: ' ',
+				renderThrottle: 1,
+				total: parseInt(totalLength)
+			});
+
+			response.data.on('data', (chunk: string | any[]) => progressBar.tick(chunk.length));
+			response.data.pipe(writer);
+
+			return new Promise((resolve, reject) => {
+				writer.on('error', (err) => {
+					writer.close();
+					console.log(user);
+					reject(err);
+				});
+				writer.on('close', async () => {
+					// Once the file is finished being streamed, we read it and decrypt it.
+					const data = fs.readFileSync(fileToDownload.filePath);
+					const dataBuffer = Buffer.from(data);
+					const driveKey: Buffer = await deriveDriveKey(
+						user.dataProtectionKey,
+						fileToDownload.driveId,
+						user.walletPrivateKey
+					);
+					const fileKey: Buffer = await deriveFileKey(fileToDownload.fileId, driveKey);
+					const decryptedData = await fileDecrypt(fileToDownload.dataCipherIV, fileKey, dataBuffer);
+
+					// Overwrite the file with the decrypted version
+					fs.writeFileSync(fileToDownload.filePath, decryptedData);
+					console.log('   Completed!', fileToDownload.filePath);
+					resolve(true);
+				});
+			});
+		}
+	} catch (err) {
+		//console.log(err);
+		console.log('Error downloading file data %s to %s', fileToDownload.fileName, fileToDownload.filePath);
+		return 'Error downloading file';
+
+		// Uploads all queued files as V2 transactions ONLY with no data bundles
 	}
 }

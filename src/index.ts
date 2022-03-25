@@ -2,18 +2,18 @@
 /* eslint-disable no-await-in-loop */
 // index.ts
 import { arDriveCommunityOracle } from './ardrive_community_oracle';
+import { checkUploadStatus, getPriceOfNextUploadBatch } from './arfs';
 import { uploadArDriveFiles } from './arweave';
 import { uploadArDriveFilesAndBundles } from './bundles';
 import { sleep } from './common';
 import { setupDatabase } from './db/db_common';
-import { getUserFromProfile, getMyFileDownloadConflicts } from './db/db_get';
+import { getUserFromProfile } from './db/db_get';
 import { setProfileAutoSyncApproval, setProfileWalletBalance } from './db/db_update';
 import { getMyArDriveFilesFromPermaWeb, downloadMyArDriveFiles, getAllMyPersonalDrives } from './download';
-import { startWatchingFolders, resolveFileDownloadConflict } from './files';
-import { checkUploadStatus, getPriceOfNextUploadBatch } from './node';
+import { startWatchingFolders } from './files';
 import { updateUserSyncFolderPath, setupDrives } from './profile';
 import * as cli from './prompts';
-import { ArDriveUser, ArFSFileMetaData, UploadBatch } from './types/base_Types';
+import { ArDriveUser, UploadBatch } from './types/base_Types';
 import { addNewUser, getUser, passwordCheck, getWalletBalance } from './wallet';
 
 async function main() {
@@ -32,7 +32,6 @@ async function main() {
 		syncFolderPath: '',
 		autoSyncApproval: 0
 	};
-	let fileDownloadConflicts: ArFSFileMetaData[] = [];
 	let useBundles = false; // Will use regular v2 transactions or ANS104 bundles
 	let downloadFiles = true;
 	let syncFiles = true;
@@ -138,31 +137,37 @@ async function main() {
 			if (syncFiles) {
 				// Get all of the public and private files for the user and store in the local database
 				await getMyArDriveFilesFromPermaWeb(user);
+				console.log('---File Metadata Sync Completed---');
 			}
 
 			// Download any files from Arweave that need to be synchronized locally
 			if (downloadFiles && syncFiles) {
 				await downloadMyArDriveFiles(user);
+				console.log('---File Download Completed---');
 			}
 
 			// Check the status of any files that may have been already been uploaded
 			await checkUploadStatus(user.login);
+			console.log('---Upload Status Check Completed---');
 
 			// Figure out the cost of the next batch of uploads, and ask the user if they want to approve
 			// If the size is -1, then the user does not have enough funds and the upload is skipped
 			const uploadBatch: UploadBatch = await getPriceOfNextUploadBatch(user.login);
+			console.log('---Got Price of next upload batch---');
 			if (uploadBatch.totalArDrivePrice > 0) {
 				if (await cli.promptForArDriveUpload(login, uploadBatch, user.autoSyncApproval)) {
 					if (useBundles) {
 						await uploadArDriveFilesAndBundles(user);
+						console.log('---Bundles and Files uploaded---');
 					} else {
 						await uploadArDriveFiles(user);
+						console.log('---Files uploaded---');
 					}
 				}
 			}
 
 			// Resolve and download conflicts, and process on the next batch
-			fileDownloadConflicts = await getMyFileDownloadConflicts(user.login);
+			/*fileDownloadConflicts = await getMyFileDownloadConflicts(user.login);
 			if (fileDownloadConflicts) {
 				fileDownloadConflicts.forEach(async (fileDownloadConflict: ArFSFileMetaData) => {
 					const response = await cli.promptForFileOverwrite(fileDownloadConflict.filePath);
@@ -173,7 +178,7 @@ async function main() {
 						fileDownloadConflict.id.toString()
 					);
 				});
-			}
+			} */
 
 			// Update date
 			const today = new Date();
