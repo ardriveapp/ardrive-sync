@@ -63,8 +63,6 @@ export async function getTransactionStatus(txId: string): Promise<number> {
 		const dataJSON = await JSON.parse(dataString);
 		return +dataJSON.number_of_confirmations;
 	} catch (err) {
-		console.log('Error getting transaction status');
-		console.log(err);
 		return -1;
 	}
 }
