@@ -47,14 +47,8 @@ export async function getTransactionStatus(txId: string): Promise<number> {
 		const portStr = '';
 		const reqURL = `${protocol}://${host}${portStr}/tx/${txId}/status`;
 		const axiosInstance = axios.create();
-		const maxRetries = 5;
-		axiosRetry(axiosInstance, {
-			retries: maxRetries,
-			retryDelay: (retryNumber) => {
-				console.error(`Retry attempt ${retryNumber}/${maxRetries} of request to ${reqURL}`);
-				return exponentialDelay(retryNumber);
-			}
-		});
+		const retries = 2;
+		axiosRetry(axiosInstance, { retries });
 		const {
 			data: txData
 		}: {
