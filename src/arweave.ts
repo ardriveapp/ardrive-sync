@@ -9,7 +9,7 @@ import Arweave from 'arweave';
 import { uploadArFSDriveMetaData, uploadArFSFileData, uploadArFSFileMetaData } from './arfs';
 import * as common from './common';
 import axios from 'axios';
-import axiosRetry, { exponentialDelay } from 'axios-retry';
+import axiosRetry from 'axios-retry';
 
 // Initialize Arweave
 export const arweave = Arweave.init({
