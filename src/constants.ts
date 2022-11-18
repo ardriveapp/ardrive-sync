@@ -48,4 +48,4 @@ export const FATAL_CHUNK_UPLOAD_ERRORS = [
 	'invalid_proof'
 ];
 
-export const MAX_CONFIRMATIONS = 10;
+export const MAX_CONFIRMATIONS = 5;
